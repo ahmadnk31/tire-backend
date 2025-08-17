@@ -50,15 +50,23 @@ app.use(cors({
     const allowedOrigins = [
       process.env.FRONTEND_URL || 'http://localhost:8080',
       'http://localhost:8081',
-      'http://localhost:3000'
+      'http://localhost:3000',
+      'https://tire-frontend-sand.vercel.app',
+      'https://tire-frontend.vercel.app'
     ];
     
     // Allow requests with no origin (mobile apps, etc.)
     if (!origin) return callback(null, true);
     
+    // In production, allow any vercel.app subdomain for the frontend
+    if (process.env.NODE_ENV === 'production' && origin.includes('.vercel.app')) {
+      return callback(null, true);
+    }
+    
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
+      console.warn(`CORS blocked origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
