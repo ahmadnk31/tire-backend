@@ -173,7 +173,7 @@ router.get('/search', searchValidation, handleValidationErrors, async (req: expr
           includeScore: true,
         });
         const fuseRaw = fuse.search(search.toLowerCase());
-        results = fuseRaw.map((r) => r.item);
+        results = fuseRaw.map((r: any) => r.item);
         // Fallback: if Fuse.js returns no results, do a substring match
         if (results.length === 0) {
           results = filteredProducts.filter(p =>
@@ -335,9 +335,9 @@ router.get('/', advancedSearchValidation, handleValidationErrors, async (req: ex
           includeScore: true,
         });
         fuseRaw = fuse.search(searchStr);
-        fuseResults = fuseRaw.map((r) => r.item);
+        fuseResults = fuseRaw.map((r: any) => r.item);
         // Fallback: if Fuse.js returns no results, do a substring match
-        if (fuseResults.length === 0) {
+        if (fuseResults && fuseResults.length === 0) {
           fuseResults = filteredProducts.filter(p =>
             [p.name, p.brand, p.model, p.sku].some(field =>
               typeof field === 'string' && field.toLowerCase().includes(searchStr)
@@ -345,13 +345,13 @@ router.get('/', advancedSearchValidation, handleValidationErrors, async (req: ex
           );
           console.log('[API] Fallback substring match results:', fuseResults.length);
         }
-        console.log('[API] Fuse.js search string:', search, '| Results:', fuseResults.length, '| Top match:', fuseRaw[0]?.item?.name, '| Score:', fuseRaw[0]?.score);
+        console.log('[API] Fuse.js search string:', search, '| Results:', fuseResults?.length, '| Top match:', fuseRaw[0]?.item?.name, '| Score:', fuseRaw[0]?.score);
       }
     }
 
     // Get total count
     let totalProducts;
-    if (fuseResults) {
+    if (fuseResults && fuseResults.length > 0) {
       totalProducts = fuseResults.length;
     } else {
       const totalCountResult = await db

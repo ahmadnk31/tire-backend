@@ -301,3 +301,6 @@ app.listen(PORT, () => {
     console.log(`📖 API Docs: http://localhost:${PORT}/api/docs`);
   }
 });
+
+// Export the app for serverless deployment
+export { app };
