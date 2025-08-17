@@ -1,4 +1,11 @@
 const serverless = require('serverless-http');
 const { app } = require('../../dist/server.js');
 
-module.exports.handler = serverless(app);
+// Configure serverless-http to handle path correctly
+const handler = serverless(app, {
+  binary: false,
+  basePath: '',
+  stripBasePath: false
+});
+
+module.exports.handler = handler;
