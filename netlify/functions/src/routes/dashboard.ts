@@ -6,7 +6,7 @@ import { eq, desc, asc, and, or, like, count, inArray, gte } from 'drizzle-orm';
 import { z } from 'zod';
 import { requireAuth, requireAdmin } from '../middleware/auth';
 import { db } from '../db';
-import { orders, orderItems, products as productsTable, users as usersTable, users, contactMessages, newsletterSubscriptions, newsletterCampaigns, newsletterCampaignProducts, productImages } from '../db/schema';
+import { orders, orderItems, products as productsTable, users as usersTable, users, contactMessages, newsletterSubscriptions, newsletterCampaigns, newsletterCampaignProducts, productImages as productImagesTable } from '../db/schema';
 import { sendContactConfirmationEmail, sendAdminNotificationEmail, sendNewsletterWelcomeEmail, sendAdminReplyEmail, sendNewsletterCampaignEmail, sendPasswordResetEmail, sendOrderConfirmationEmail, getProductCatalogTemplate } from '../services/emailService';
 
 const router = Router();
@@ -978,12 +978,17 @@ router.post('/campaigns', requireAuth, requireAdmin, async (req, res) => {
 
     // Add products if it's a product catalog campaign
     if (validatedData.type === 'product_catalog' && validatedData.productIds?.length) {
+      console.log('📦 Creating product catalog campaign with products:', validatedData.productIds);
       const productInserts = validatedData.productIds.map((productId, index) => ({
         campaignId: campaign.id,
         productId,
         displayOrder: index,
       }));
       await db.insert(newsletterCampaignProducts).values(productInserts);
+      console.log('✅ Inserted campaign products:', productInserts.length);
+    } else {
+      console.log('⚠️ No products provided for campaign type:', validatedData.type);
+      console.log('⚠️ Product IDs:', validatedData.productIds);
     }
 
     res.json({
@@ -1078,7 +1083,9 @@ router.post('/campaigns/:id/send', requireAuth, requireAdmin, async (req, res) =
 
     // If it's a product catalog campaign, use the product catalog template
     if (campaign.type === 'product_catalog') {
-      // Get campaign products
+      console.log('🛍️ Processing product catalog campaign:', campaignId);
+      
+      // Get campaign products with images
       const campaignProducts = await db
         .select({
           productId: newsletterCampaignProducts.productId,
@@ -1090,6 +1097,35 @@ router.post('/campaigns/:id/send', requireAuth, requireAdmin, async (req, res) =
         .where(eq(newsletterCampaignProducts.campaignId, campaignId))
         .orderBy(asc(newsletterCampaignProducts.displayOrder));
 
+      console.log('📦 Found campaign products:', campaignProducts.length);
+      console.log('📦 Campaign products details:', campaignProducts);
+
+      // Get images for all campaign products
+      const productIds = campaignProducts
+        .map(cp => cp.productId)
+        .filter((id): id is number => id !== null && id !== undefined);
+      
+      console.log('🔍 Product IDs to fetch images for:', productIds);
+      
+      const productImages = productIds.length > 0 ? await db
+        .select()
+        .from(productImagesTable)
+        .where(inArray(productImagesTable.productId, productIds))
+        .orderBy(asc(productImagesTable.sortOrder)) : [];
+
+      console.log('🖼️ Found product images:', productImages.length);
+
+      // Group images by productId
+      const imagesByProductId = productImages.reduce((acc, img) => {
+        if (img.productId !== null) {
+          if (!acc[img.productId]) acc[img.productId] = [];
+          acc[img.productId].push(img.imageUrl);
+        }
+        return acc;
+      }, {} as Record<number, string[]>);
+
+      console.log('📸 Images grouped by product ID:', imagesByProductId);
+
       const products = campaignProducts
         .filter(cp => cp.product !== null) // Filter out null products
         .map(cp => ({
@@ -1100,11 +1136,14 @@ router.post('/campaigns/:id/send', requireAuth, requireAdmin, async (req, res) =
           size: cp.product!.size,
           price: cp.product!.price,
           comparePrice: cp.product!.comparePrice || undefined,
-          images: [], // TODO: Add product images from productImages table
+          images: imagesByProductId[cp.product!.id] || [],
           rating: cp.product!.rating || undefined,
           stock: cp.product!.stock,
           description: cp.product!.description || undefined,
         }));
+
+      console.log('✅ Final products for email template:', products.length);
+      console.log('✅ Products details:', products);
 
       // Generate product catalog email
       const websiteUrl = process.env.FRONTEND_URL || 'https://tire-frontend.vercel.app';
@@ -1113,6 +1152,9 @@ router.post('/campaigns/:id/send', requireAuth, requireAdmin, async (req, res) =
         campaignTitle: campaign.title,
         websiteUrl
       });
+      
+      console.log('📧 Generated email content length:', emailContent.length);
+      console.log('📧 Email content preview:', emailContent.substring(0, 500) + '...');
     }
 
     // Send emails to all subscribers

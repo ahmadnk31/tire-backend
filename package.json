@@ -4,7 +4,7 @@
   "description": "Backend API for Tire Store",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc && cp -r src netlify/functions/",
+    "build": "tsc && cp -r dist/src/* netlify/functions/src/ && cp dist/server.js netlify/functions/",
     "start": "node dist/server.js",
     "dev": "nodemon --exec ts-node server.ts",
     "dev:watch": "nodemon --watch src --ext ts --exec ts-node server.ts",

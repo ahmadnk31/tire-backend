@@ -1,35 +1,23 @@
-import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
-
-const ses = new SESClient({
-  region: process.env.AWS_REGION || 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getProductCatalogTemplate = void 0;
+exports.sendVerificationEmail = sendVerificationEmail;
+exports.sendContactConfirmationEmail = sendContactConfirmationEmail;
+exports.sendAdminNotificationEmail = sendAdminNotificationEmail;
+exports.sendNewsletterWelcomeEmail = sendNewsletterWelcomeEmail;
+exports.sendPasswordResetEmail = sendPasswordResetEmail;
+exports.sendOrderConfirmationEmail = sendOrderConfirmationEmail;
+exports.sendAdminReplyEmail = sendAdminReplyEmail;
+exports.sendNewsletterCampaignEmail = sendNewsletterCampaignEmail;
+const client_ses_1 = require("@aws-sdk/client-ses");
+const ses = new client_ses_1.SESClient({
+    region: process.env.AWS_REGION || 'us-east-1',
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    },
 });
-
-interface Product {
-  id: number;
-  name: string;
-  brand: string;
-  model: string;
-  size: string;
-  price: string;
-  comparePrice?: string;
-  images?: string[];
-  rating?: string;
-  stock: number;
-  description?: string;
-}
-
-interface ProductCatalogData {
-  products: Product[];
-  campaignTitle: string;
-  websiteUrl: string;
-}
-
-// Email templates
-const getEmailTemplate = (content: string, title: string) => `
+const getEmailTemplate = (content, title) => `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -122,21 +110,17 @@ const getEmailTemplate = (content: string, title: string) => `
 </body>
 </html>
 `;
-
-// Contact form confirmation email template
-const getContactConfirmationTemplate = (name: string, inquiryType: string, subject: string, email: string) => {
-  const inquiryTypeMap: { [key: string]: string } = {
-    general: 'General Question',
-    quote: 'Request Quote',
-    appointment: 'Schedule Appointment',
-    warranty: 'Warranty Claim',
-    complaint: 'Complaint',
-    support: 'Technical Support'
-  };
-
-  const unsubscribeUrl = `${process.env.FRONTEND_URL || 'https://tire-frontend.vercel.app'}/unsubscribe?email=${encodeURIComponent(email)}`;
-
-  const content = `
+const getContactConfirmationTemplate = (name, inquiryType, subject, email) => {
+    const inquiryTypeMap = {
+        general: 'General Question',
+        quote: 'Request Quote',
+        appointment: 'Schedule Appointment',
+        warranty: 'Warranty Claim',
+        complaint: 'Complaint',
+        support: 'Technical Support'
+    };
+    const unsubscribeUrl = `${process.env.FRONTEND_URL || 'https://tire-frontend.vercel.app'}/unsubscribe?email=${encodeURIComponent(email)}`;
+    const content = `
     <h2>Thank you for contacting us, ${name}!</h2>
     <p>We have received your message and will get back to you within 24 hours.</p>
     
@@ -169,22 +153,18 @@ const getContactConfirmationTemplate = (name: string, inquiryType: string, subje
         <p>Ariana Bandencentraal | Amsterdam, Netherlands</p>
     </div>
   `;
-
-  return getEmailTemplate(content, `Message Received - ${subject}`);
+    return getEmailTemplate(content, `Message Received - ${subject}`);
 };
-
-// Admin notification email template
-const getAdminNotificationTemplate = (name: string, email: string, inquiryType: string, subject: string, message: string, phone?: string) => {
-  const inquiryTypeMap: { [key: string]: string } = {
-    general: 'General Question',
-    quote: 'Request Quote',
-    appointment: 'Schedule Appointment',
-    warranty: 'Warranty Claim',
-    complaint: 'Complaint',
-    support: 'Technical Support'
-  };
-
-  const content = `
+const getAdminNotificationTemplate = (name, email, inquiryType, subject, message, phone) => {
+    const inquiryTypeMap = {
+        general: 'General Question',
+        quote: 'Request Quote',
+        appointment: 'Schedule Appointment',
+        warranty: 'Warranty Claim',
+        complaint: 'Complaint',
+        support: 'Technical Support'
+    };
+    const content = `
     <h2>🔔 New Contact Form Submission</h2>
     <p>A new message has been received through the website contact form.</p>
     
@@ -210,16 +190,12 @@ const getAdminNotificationTemplate = (name: string, email: string, inquiryType: 
         <a href="mailto:${email}" class="button">Reply to Customer</a>
     </div>
   `;
-
-  return getEmailTemplate(content, `🔔 New Contact: ${subject}`);
+    return getEmailTemplate(content, `🔔 New Contact: ${subject}`);
 };
-
-// Newsletter welcome email template
-const getNewsletterWelcomeTemplate = (email: string, name?: string) => {
-  const greeting = name ? `Hi ${name}` : 'Hello';
-  const unsubscribeUrl = `${process.env.FRONTEND_URL || 'https://tire-frontend.vercel.app'}/unsubscribe?email=${encodeURIComponent(email)}`;
-  
-  const content = `
+const getNewsletterWelcomeTemplate = (email, name) => {
+    const greeting = name ? `Hi ${name}` : 'Hello';
+    const unsubscribeUrl = `${process.env.FRONTEND_URL || 'https://tire-frontend.vercel.app'}/unsubscribe?email=${encodeURIComponent(email)}`;
+    const content = `
     <h2>${greeting}! Welcome to Ariana Bandencentraal</h2>
     <p>Thank you for subscribing to our newsletter! You're now part of our tire family.</p>
     
@@ -257,15 +233,11 @@ const getNewsletterWelcomeTemplate = (email: string, name?: string) => {
         <p>Ariana Bandencentraal | Amsterdam, Netherlands</p>
     </div>
   `;
-
-  return getEmailTemplate(content, 'Welcome to Ariana Bandencentraal Newsletter! 🚗');
+    return getEmailTemplate(content, 'Welcome to Ariana Bandencentraal Newsletter! 🚗');
 };
-
-// Password reset email template
-export async function sendVerificationEmail(email: string, token: string) {
-  const link = `${process.env.FRONTEND_URL}/verify?email=${encodeURIComponent(email)}&token=${token}`;
-  
-  const content = `
+async function sendVerificationEmail(email, token) {
+    const link = `${process.env.FRONTEND_URL}/verify?email=${encodeURIComponent(email)}&token=${token}`;
+    const content = `
     <h2>Verify Your Email Address</h2>
     <p>Thank you for creating an account with Ariana Bandencentraal!</p>
     <p>To complete your registration, please verify your email address by clicking the button below:</p>
@@ -282,86 +254,64 @@ export async function sendVerificationEmail(email: string, token: string) {
     <p>If the button doesn't work, copy and paste this link into your browser:</p>
     <p style="word-break: break-all; background: #f8fafc; padding: 10px; border-radius: 4px;">${link}</p>
   `;
-
-  const params = {
-    Source: process.env.SES_FROM_EMAIL!,
-    Destination: { ToAddresses: [email] },
-    Message: {
-      Subject: { Data: 'Verify your email - Ariana Bandencentraal' },
-      Body: {
-        Html: { Data: getEmailTemplate(content, 'Verify Your Email') },
-      },
-    },
-  };
-  
-  const command = new SendEmailCommand(params);
-  await ses.send(command);
+    const params = {
+        Source: process.env.SES_FROM_EMAIL,
+        Destination: { ToAddresses: [email] },
+        Message: {
+            Subject: { Data: 'Verify your email - Ariana Bandencentraal' },
+            Body: {
+                Html: { Data: getEmailTemplate(content, 'Verify Your Email') },
+            },
+        },
+    };
+    const command = new client_ses_1.SendEmailCommand(params);
+    await ses.send(command);
 }
-
-// Send contact form confirmation email
-export async function sendContactConfirmationEmail(email: string, name: string, inquiryType: string, subject: string) {
-  const params = {
-    Source: process.env.SES_FROM_EMAIL!,
-    Destination: { ToAddresses: [email] },
-    Message: {
-      Subject: { Data: `Message Received - ${subject}` },
-      Body: {
-        Html: { Data: getContactConfirmationTemplate(name, inquiryType, subject, email) },
-      },
-    },
-  };
-  
-  const command = new SendEmailCommand(params);
-  await ses.send(command);
+async function sendContactConfirmationEmail(email, name, inquiryType, subject) {
+    const params = {
+        Source: process.env.SES_FROM_EMAIL,
+        Destination: { ToAddresses: [email] },
+        Message: {
+            Subject: { Data: `Message Received - ${subject}` },
+            Body: {
+                Html: { Data: getContactConfirmationTemplate(name, inquiryType, subject, email) },
+            },
+        },
+    };
+    const command = new client_ses_1.SendEmailCommand(params);
+    await ses.send(command);
 }
-
-// Send admin notification email
-export async function sendAdminNotificationEmail(
-  adminEmail: string, 
-  customerName: string, 
-  customerEmail: string, 
-  inquiryType: string, 
-  subject: string, 
-  message: string,
-  phone?: string
-) {
-  const params = {
-    Source: process.env.SES_FROM_EMAIL!,
-    Destination: { ToAddresses: [adminEmail] },
-    Message: {
-      Subject: { Data: `🔔 New Contact: ${subject}` },
-      Body: {
-        Html: { Data: getAdminNotificationTemplate(customerName, customerEmail, inquiryType, subject, message, phone) },
-      },
-    },
-  };
-  
-  const command = new SendEmailCommand(params);
-  await ses.send(command);
+async function sendAdminNotificationEmail(adminEmail, customerName, customerEmail, inquiryType, subject, message, phone) {
+    const params = {
+        Source: process.env.SES_FROM_EMAIL,
+        Destination: { ToAddresses: [adminEmail] },
+        Message: {
+            Subject: { Data: `🔔 New Contact: ${subject}` },
+            Body: {
+                Html: { Data: getAdminNotificationTemplate(customerName, customerEmail, inquiryType, subject, message, phone) },
+            },
+        },
+    };
+    const command = new client_ses_1.SendEmailCommand(params);
+    await ses.send(command);
 }
-
-// Send newsletter welcome email
-export async function sendNewsletterWelcomeEmail(email: string, name?: string) {
-  const params = {
-    Source: process.env.SES_FROM_EMAIL!,
-    Destination: { ToAddresses: [email] },
-    Message: {
-      Subject: { Data: 'Welcome to Ariana Bandencentraal Newsletter! 🚗' },
-      Body: {
-        Html: { Data: getNewsletterWelcomeTemplate(email, name) },
-      },
-    },
-  };
-  
-  const command = new SendEmailCommand(params);
-  await ses.send(command);
+async function sendNewsletterWelcomeEmail(email, name) {
+    const params = {
+        Source: process.env.SES_FROM_EMAIL,
+        Destination: { ToAddresses: [email] },
+        Message: {
+            Subject: { Data: 'Welcome to Ariana Bandencentraal Newsletter! 🚗' },
+            Body: {
+                Html: { Data: getNewsletterWelcomeTemplate(email, name) },
+            },
+        },
+    };
+    const command = new client_ses_1.SendEmailCommand(params);
+    await ses.send(command);
 }
-
-// Send password reset email
-export async function sendPasswordResetEmail(email: string, token: string) {
-  const link = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
-  
-  const content = `
+async function sendPasswordResetEmail(email, token) {
+    const link = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+    const content = `
     <h2>Password Reset Request</h2>
     <p>We received a request to reset your password for your Ariana Bandencentraal account.</p>
     <p>Click the button below to create a new password:</p>
@@ -387,36 +337,23 @@ export async function sendPasswordResetEmail(email: string, token: string) {
         </ul>
     </div>
   `;
-
-  const params = {
-    Source: process.env.SES_FROM_EMAIL!,
-    Destination: { ToAddresses: [email] },
-    Message: {
-      Subject: { Data: 'Password Reset - Ariana Bandencentraal' },
-      Body: {
-        Html: { Data: getEmailTemplate(content, 'Password Reset') },
-      },
-    },
-  };
-  
-  const command = new SendEmailCommand(params);
-  await ses.send(command);
+    const params = {
+        Source: process.env.SES_FROM_EMAIL,
+        Destination: { ToAddresses: [email] },
+        Message: {
+            Subject: { Data: 'Password Reset - Ariana Bandencentraal' },
+            Body: {
+                Html: { Data: getEmailTemplate(content, 'Password Reset') },
+            },
+        },
+    };
+    const command = new client_ses_1.SendEmailCommand(params);
+    await ses.send(command);
 }
-
-// Send order confirmation email
-export async function sendOrderConfirmationEmail(
-  email: string, 
-  customerName: string, 
-  orderNumber: string, 
-  orderItems: any[], 
-  totalAmount: number
-) {
-  const unsubscribeUrl = `${process.env.FRONTEND_URL || 'https://tire-frontend.vercel.app'}/unsubscribe?email=${encodeURIComponent(email)}`;
-  const itemsList = orderItems.map(item => 
-    `<li>${item.quantity}x ${item.name} - €${item.price.toFixed(2)}</li>`
-  ).join('');
-
-  const content = `
+async function sendOrderConfirmationEmail(email, customerName, orderNumber, orderItems, totalAmount) {
+    const unsubscribeUrl = `${process.env.FRONTEND_URL || 'https://tire-frontend.vercel.app'}/unsubscribe?email=${encodeURIComponent(email)}`;
+    const itemsList = orderItems.map(item => `<li>${item.quantity}x ${item.name} - €${item.price.toFixed(2)}</li>`).join('');
+    const content = `
     <h2>Order Confirmation - Thank you ${customerName}!</h2>
     <p>Your tire order has been successfully placed and is being processed.</p>
     
@@ -464,35 +401,22 @@ export async function sendOrderConfirmationEmail(
         <p>Ariana Bandencentraal | Amsterdam, Netherlands</p>
     </div>
   `;
-
-  const params = {
-    Source: process.env.SES_FROM_EMAIL!,
-    Destination: { ToAddresses: [email] },
-    Message: {
-      Subject: { Data: `Order Confirmation #${orderNumber} - Ariana Bandencentraal` },
-      Body: {
-        Html: { Data: getEmailTemplate(content, `Order Confirmation #${orderNumber}`) },
-      },
-    },
-  };
-  
-  const command = new SendEmailCommand(params);
-  await ses.send(command);
+    const params = {
+        Source: process.env.SES_FROM_EMAIL,
+        Destination: { ToAddresses: [email] },
+        Message: {
+            Subject: { Data: `Order Confirmation #${orderNumber} - Ariana Bandencentraal` },
+            Body: {
+                Html: { Data: getEmailTemplate(content, `Order Confirmation #${orderNumber}`) },
+            },
+        },
+    };
+    const command = new client_ses_1.SendEmailCommand(params);
+    await ses.send(command);
 }
-
-// Send admin reply email
-export async function sendAdminReplyEmail(
-  customerEmail: string,
-  customerName: string,
-  originalSubject: string,
-  originalMessage: string,
-  originalDate: string,
-  replySubject: string,
-  replyMessage: string
-) {
-  const unsubscribeUrl = `${process.env.FRONTEND_URL || 'https://tire-frontend.vercel.app'}/unsubscribe?email=${encodeURIComponent(customerEmail)}`;
-  
-  const content = `
+async function sendAdminReplyEmail(customerEmail, customerName, originalSubject, originalMessage, originalDate, replySubject, replyMessage) {
+    const unsubscribeUrl = `${process.env.FRONTEND_URL || 'https://tire-frontend.vercel.app'}/unsubscribe?email=${encodeURIComponent(customerEmail)}`;
+    const content = `
     <h2>Re: ${originalSubject}</h2>
     <p>Dear ${customerName},</p>
     <p>Thank you for contacting Ariana Bandencentraal. Here is our response to your inquiry:</p>
@@ -527,36 +451,26 @@ export async function sendAdminReplyEmail(
         <p>Ariana Bandencentraal | Amsterdam, Netherlands</p>
     </div>
   `;
-
-  const params = {
-    Source: process.env.SES_FROM_EMAIL!,
-    Destination: { ToAddresses: [customerEmail] },
-    Message: {
-      Subject: { Data: `Re: ${replySubject} - Ariana Bandencentraal` },
-      Body: {
-        Html: { Data: getEmailTemplate(content, `Reply: ${replySubject}`) },
-      },
-    },
-  };
-  
-  const command = new SendEmailCommand(params);
-  await ses.send(command);
+    const params = {
+        Source: process.env.SES_FROM_EMAIL,
+        Destination: { ToAddresses: [customerEmail] },
+        Message: {
+            Subject: { Data: `Re: ${replySubject} - Ariana Bandencentraal` },
+            Body: {
+                Html: { Data: getEmailTemplate(content, `Reply: ${replySubject}`) },
+            },
+        },
+    };
+    const command = new client_ses_1.SendEmailCommand(params);
+    await ses.send(command);
 }
-
-// Send newsletter campaign email
-export async function sendNewsletterCampaignEmail(
-  email: string,
-  subject: string,
-  message: string,
-  unsubscribeUrl?: string
-) {
-  // If message is already HTML (for product catalog campaigns), use it directly
-  let emailContent;
-  if (message.includes('<html') || message.includes('<!DOCTYPE')) {
-    emailContent = message;
-  } else {
-    // Otherwise, create the newsletter template
-    const content = `
+async function sendNewsletterCampaignEmail(email, subject, message, unsubscribeUrl) {
+    let emailContent;
+    if (message.includes('<html') || message.includes('<!DOCTYPE')) {
+        emailContent = message;
+    }
+    else {
+        const content = `
       <h2>${subject}</h2>
       <div style="white-space: pre-wrap; line-height: 1.6; margin: 20px 0;">
         ${message}
@@ -588,36 +502,31 @@ export async function sendNewsletterCampaignEmail(
           <p>Follow us on social media for daily tips and updates!</p>
       </div>
     `;
-    emailContent = getEmailTemplate(content, 'Newsletter Campaign - Tire Shop');
-  }
-
-  const params = {
-    Source: process.env.SES_FROM_EMAIL!,
-    Destination: { ToAddresses: [email] },
-    Message: {
-      Subject: { Data: subject },
-      Body: {
-        Html: { Data: emailContent },
-      },
-    },
-  };
-  
-  const command = new SendEmailCommand(params);
-  await ses.send(command);
-};
-
-// Product Catalog Newsletter Template
-export const getProductCatalogTemplate = (data: ProductCatalogData, unsubscribeUrl?: string) => {
-  const { products, campaignTitle, websiteUrl } = data;
-  
-  const productCards = products.map(product => {
-    const productUrl = `${websiteUrl}/products/${product.id}`;
-    const imageUrl = product.images?.[0] || '/placeholder.svg';
-    const originalPrice = product.comparePrice ? parseFloat(product.comparePrice) : null;
-    const currentPrice = parseFloat(product.price);
-    const discount = originalPrice ? Math.round(((originalPrice - currentPrice) / originalPrice) * 100) : 0;
-    
-    return `
+        emailContent = getEmailTemplate(content, 'Newsletter Campaign - Tire Shop');
+    }
+    const params = {
+        Source: process.env.SES_FROM_EMAIL,
+        Destination: { ToAddresses: [email] },
+        Message: {
+            Subject: { Data: subject },
+            Body: {
+                Html: { Data: emailContent },
+            },
+        },
+    };
+    const command = new client_ses_1.SendEmailCommand(params);
+    await ses.send(command);
+}
+;
+const getProductCatalogTemplate = (data, unsubscribeUrl) => {
+    const { products, campaignTitle, websiteUrl } = data;
+    const productCards = products.map(product => {
+        const productUrl = `${websiteUrl}/products/${product.id}`;
+        const imageUrl = product.images?.[0] || '/placeholder.svg';
+        const originalPrice = product.comparePrice ? parseFloat(product.comparePrice) : null;
+        const currentPrice = parseFloat(product.price);
+        const discount = originalPrice ? Math.round(((originalPrice - currentPrice) / originalPrice) * 100) : 0;
+        return `
       <div style="background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden; margin-bottom: 20px; max-width: 300px; display: inline-block; vertical-align: top; margin-right: 15px;">
         <div style="position: relative;">
           <img src="${imageUrl}" alt="${product.name}" style="width: 100%; height: 200px; object-fit: cover;">
@@ -638,7 +547,7 @@ export const getProductCatalogTemplate = (data: ProductCatalogData, unsubscribeU
           ${product.rating ? `
             <div style="display: flex; align-items: center; margin-bottom: 12px;">
               <div style="display: flex; margin-right: 4px;">
-                ${Array.from({length: 5}).map((_, i) => `<span style="color: ${i < Math.floor(parseFloat(product.rating!)) ? '#fbbf24' : '#d1d5db'};">★</span>`).join('')}
+                ${Array.from({ length: 5 }).map((_, i) => `<span style="color: ${i < Math.floor(parseFloat(product.rating)) ? '#fbbf24' : '#d1d5db'};">★</span>`).join('')}
               </div>
               <span style="font-size: 12px; color: #6b7280;">(${product.rating}/5)</span>
             </div>
@@ -648,9 +557,8 @@ export const getProductCatalogTemplate = (data: ProductCatalogData, unsubscribeU
         </div>
       </div>
     `;
-  }).join('');
-
-  const content = `
+    }).join('');
+    const content = `
     <div class="hero-section">
         <h1>🚗 ${campaignTitle}</h1>
         <p style="font-size: 18px; margin: 20px 0;">Discover our carefully selected tire collection with unbeatable prices and quality!</p>
@@ -676,17 +584,17 @@ export const getProductCatalogTemplate = (data: ProductCatalogData, unsubscribeU
             </div>
             <div>
                 <h4 style="color: hsl(220, 9%, 20%); margin-bottom: 5px;">⚡ Fast Installation</h4>
-                <p style="font-size: 14px; color: #64748b; margin: 0;">Professional service in 30 mins</p>
+                <p style="font-size: 14px; color: #e7eaeeff; margin: 0;">Professional service in 30 mins</p>
             </div>
             <div>
                 <h4 style="color: hsl(220, 9%, 20%); margin-bottom: 5px;">💰 Best Prices</h4>
-                <p style="font-size: 14px; color: #64748b; margin: 0;">Price match guarantee</p>
+                <p style="font-size: 14px; color: #f4f6f8ff; margin: 0;">Price match guarantee</p>
             </div>
         </div>
     </div>
 
     <div style="text-align: center; margin: 30px 0;">
-        <a href="${websiteUrl}/products" class="button">Browse All Tires</a>
+        <a href="${websiteUrl}/products" class="button text-white">Browse All Tires</a>
         <p style="margin-top: 15px; font-size: 14px; color: #64748b;">Can't find what you're looking for? <a href="${websiteUrl}/contact" style="color: hsl(220, 9%, 20%);">Contact our experts</a></p>
     </div>
 
@@ -696,8 +604,6 @@ export const getProductCatalogTemplate = (data: ProductCatalogData, unsubscribeU
         <p>Follow us on social media for the latest tire deals and automotive tips!</p>
     </div>
   `;
-
-  return getEmailTemplate(content, `${campaignTitle} - Tire Shop`);
+    return getEmailTemplate(content, `${campaignTitle} - Tire Shop`);
 };
-
-
+exports.getProductCatalogTemplate = getProductCatalogTemplate;

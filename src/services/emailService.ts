@@ -54,7 +54,7 @@ const getEmailTemplate = (content: string, title: string) => `
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         .header {
-            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            background: linear-gradient(135deg, hsl(220, 9%, 20%) 0%, hsl(220, 9%, 30%) 100%);
             color: white;
             padding: 30px 20px;
             text-align: center;
@@ -77,7 +77,7 @@ const getEmailTemplate = (content: string, title: string) => `
         }
         .button {
             display: inline-block;
-            background-color: #2563eb;
+            background-color: hsl(220, 9%, 20%);
             color: white;
             text-decoration: none;
             padding: 12px 24px;
@@ -88,7 +88,7 @@ const getEmailTemplate = (content: string, title: string) => `
         .highlight {
             background-color: #f1f5f9;
             padding: 15px;
-            border-left: 4px solid #2563eb;
+            border-left: 4px solid hsl(220, 9%, 20%);
             margin: 15px 0;
         }
         .contact-info {
@@ -124,7 +124,7 @@ const getEmailTemplate = (content: string, title: string) => `
 `;
 
 // Contact form confirmation email template
-const getContactConfirmationTemplate = (name: string, inquiryType: string, subject: string) => {
+const getContactConfirmationTemplate = (name: string, inquiryType: string, subject: string, email: string) => {
   const inquiryTypeMap: { [key: string]: string } = {
     general: 'General Question',
     quote: 'Request Quote',
@@ -133,6 +133,8 @@ const getContactConfirmationTemplate = (name: string, inquiryType: string, subje
     complaint: 'Complaint',
     support: 'Technical Support'
   };
+
+  const unsubscribeUrl = `${process.env.FRONTEND_URL || 'https://tire-frontend.vercel.app'}/unsubscribe?email=${encodeURIComponent(email)}`;
 
   const content = `
     <h2>Thank you for contacting us, ${name}!</h2>
@@ -160,6 +162,12 @@ const getContactConfirmationTemplate = (name: string, inquiryType: string, subje
     </div>
 
     <p>Thank you for choosing Ariana Bandencentraal for your tire needs!</p>
+    
+    <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b;">
+        <p>This is an automated confirmation email. No longer wish to receive updates from us?</p>
+        <p><a href="${unsubscribeUrl}" style="color: hsl(220, 9%, 20%); text-decoration: none;">Unsubscribe here</a></p>
+        <p>Ariana Bandencentraal | Amsterdam, Netherlands</p>
+    </div>
   `;
 
   return getEmailTemplate(content, `Message Received - ${subject}`);
@@ -298,7 +306,7 @@ export async function sendContactConfirmationEmail(email: string, name: string, 
     Message: {
       Subject: { Data: `Message Received - ${subject}` },
       Body: {
-        Html: { Data: getContactConfirmationTemplate(name, inquiryType, subject) },
+        Html: { Data: getContactConfirmationTemplate(name, inquiryType, subject, email) },
       },
     },
   };
@@ -403,6 +411,7 @@ export async function sendOrderConfirmationEmail(
   orderItems: any[], 
   totalAmount: number
 ) {
+  const unsubscribeUrl = `${process.env.FRONTEND_URL || 'https://tire-frontend.vercel.app'}/unsubscribe?email=${encodeURIComponent(email)}`;
   const itemsList = orderItems.map(item => 
     `<li>${item.quantity}x ${item.name} - €${item.price.toFixed(2)}</li>`
   ).join('');
@@ -448,6 +457,12 @@ export async function sendOrderConfirmationEmail(
     </div>
 
     <p>Questions about your order? Reply to this email or call us at +31 20 123 4567.</p>
+    
+    <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b;">
+        <p>This is an order confirmation email. No longer wish to receive marketing emails from us?</p>
+        <p><a href="${unsubscribeUrl}" style="color: hsl(220, 9%, 20%); text-decoration: none;">Unsubscribe here</a></p>
+        <p>Ariana Bandencentraal | Amsterdam, Netherlands</p>
+    </div>
   `;
 
   const params = {
@@ -475,6 +490,8 @@ export async function sendAdminReplyEmail(
   replySubject: string,
   replyMessage: string
 ) {
+  const unsubscribeUrl = `${process.env.FRONTEND_URL || 'https://tire-frontend.vercel.app'}/unsubscribe?email=${encodeURIComponent(customerEmail)}`;
+  
   const content = `
     <h2>Re: ${originalSubject}</h2>
     <p>Dear ${customerName},</p>
@@ -504,9 +521,11 @@ export async function sendAdminReplyEmail(
         <p><strong>Emergency:</strong> +31 6 9999 0000 (24/7)</p>
     </div>
 
-    <p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 14px;">
-      This is a direct response from our customer service team. Your satisfaction is our priority.
-    </p>
+    <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b;">
+        <p>This is a direct response from our customer service team. Your satisfaction is our priority.</p>
+        <p>No longer wish to receive emails from us? <a href="${unsubscribeUrl}" style="color: hsl(220, 9%, 20%); text-decoration: none;">Unsubscribe here</a></p>
+        <p>Ariana Bandencentraal | Amsterdam, Netherlands</p>
+    </div>
   `;
 
   const params = {
@@ -625,7 +644,7 @@ export const getProductCatalogTemplate = (data: ProductCatalogData, unsubscribeU
             </div>
           ` : ''}
           
-          <a href="${productUrl}" style="display: inline-block; width: 100%; text-align: center; background: #2563eb; color: white; padding: 10px 16px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; box-sizing: border-box;">View Details</a>
+          <a href="${productUrl}" style="display: inline-block; width: 100%; text-align: center; background: hsl(220, 9%, 20%); color: white; padding: 10px 16px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; box-sizing: border-box;">View Details</a>
         </div>
       </div>
     `;
@@ -648,32 +667,32 @@ export const getProductCatalogTemplate = (data: ProductCatalogData, unsubscribeU
         <h3 style="color: #1f2937; margin-bottom: 15px;">🎯 Why Choose Our Tires?</h3>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 20px;">
             <div>
-                <h4 style="color: #2563eb; margin-bottom: 5px;">🛡️ Quality Guaranteed</h4>
+                <h4 style="color: hsl(220, 9%, 20%); margin-bottom: 5px;">🛡️ Quality Guaranteed</h4>
                 <p style="font-size: 14px; color: #64748b; margin: 0;">Premium brands with warranty</p>
             </div>
             <div>
-                <h4 style="color: #2563eb; margin-bottom: 5px;">🚚 Free Delivery</h4>
+                <h4 style="color: hsl(220, 9%, 20%); margin-bottom: 5px;">🚚 Free Delivery</h4>
                 <p style="font-size: 14px; color: #64748b; margin: 0;">On orders over $200</p>
             </div>
             <div>
-                <h4 style="color: #2563eb; margin-bottom: 5px;">⚡ Fast Installation</h4>
-                <p style="font-size: 14px; color: #64748b; margin: 0;">Professional service in 30 mins</p>
+                <h4 style="color: hsl(220, 9%, 20%); margin-bottom: 5px;">⚡ Fast Installation</h4>
+                <p style="font-size: 14px; color: #e7eaeeff; margin: 0;">Professional service in 30 mins</p>
             </div>
             <div>
-                <h4 style="color: #2563eb; margin-bottom: 5px;">💰 Best Prices</h4>
-                <p style="font-size: 14px; color: #64748b; margin: 0;">Price match guarantee</p>
+                <h4 style="color: hsl(220, 9%, 20%); margin-bottom: 5px;">💰 Best Prices</h4>
+                <p style="font-size: 14px; color: #f4f6f8ff; margin: 0;">Price match guarantee</p>
             </div>
         </div>
     </div>
 
     <div style="text-align: center; margin: 30px 0;">
-        <a href="${websiteUrl}/products" class="button">Browse All Tires</a>
-        <p style="margin-top: 15px; font-size: 14px; color: #64748b;">Can't find what you're looking for? <a href="${websiteUrl}/contact" style="color: #2563eb;">Contact our experts</a></p>
+        <a href="${websiteUrl}/products" class="button text-white">Browse All Tires</a>
+        <p style="margin-top: 15px; font-size: 14px; color: #64748b;">Can't find what you're looking for? <a href="${websiteUrl}/contact" style="color: hsl(220, 9%, 20%);">Contact our experts</a></p>
     </div>
 
     <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b;">
         <p>You're receiving this email because you subscribed to our newsletter.</p>
-        ${unsubscribeUrl ? `<p><a href="${unsubscribeUrl}" style="color: #64748b; text-decoration: underline;">Unsubscribe from our newsletter</a></p>` : ''}
+        ${unsubscribeUrl ? `<p><a href="${unsubscribeUrl}" style="color: hsl(220, 9%, 20%); text-decoration: underline;">Unsubscribe from our newsletter</a></p>` : ''}
         <p>Follow us on social media for the latest tire deals and automotive tips!</p>
     </div>
   `;

@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
-import { upload } from '../middleware/upload.js';
-import S3Service from '../services/s3Service.js';
+import { upload } from '../middleware/upload';
+import S3Service from '../services/s3Service';
 
 const router = express.Router();
 const s3Service = new S3Service();
