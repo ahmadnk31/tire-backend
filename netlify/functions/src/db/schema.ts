@@ -146,6 +146,65 @@ export const banners = pgTable('banners', {
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').defaultNow(),
 });
+
+// Contact Messages table
+export const contactMessages = pgTable('contact_messages', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull(),
+  email: varchar('email', { length: 255 }).notNull(),
+  phone: varchar('phone', { length: 20 }),
+  subject: varchar('subject', { length: 200 }).notNull(),
+  message: text('message').notNull(),
+  inquiryType: varchar('inquiry_type', { length: 20 }).notNull(), // 'general', 'quote', 'appointment', 'warranty', 'complaint', 'support'
+  status: varchar('status', { length: 20 }).notNull().default('pending'), // 'pending', 'in-progress', 'resolved', 'closed'
+  adminResponse: text('admin_response'),
+  clientIP: varchar('client_ip', { length: 45 }),
+  userAgent: text('user_agent'),
+  userId: integer('user_id').references(() => users.id), // Optional - if user is logged in
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// Newsletter Subscriptions table
+export const newsletterSubscriptions = pgTable('newsletter_subscriptions', {
+  id: serial('id').primaryKey(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  name: varchar('name', { length: 100 }),
+  status: varchar('status', { length: 20 }).notNull().default('active'), // 'active', 'unsubscribed', 'bounced'
+  source: varchar('source', { length: 50 }).default('website'), // 'website', 'import', 'api'
+  tags: jsonb('tags'), // Array of tags for segmentation
+  metadata: jsonb('metadata'), // Additional data like preferences
+  subscribedAt: timestamp('subscribed_at').defaultNow(),
+  unsubscribedAt: timestamp('unsubscribed_at'),
+  lastEmailSent: timestamp('last_email_sent'),
+});
+
+// Newsletter Campaigns table
+export const newsletterCampaigns = pgTable('newsletter_campaigns', {
+  id: serial('id').primaryKey(),
+  title: varchar('title', { length: 255 }).notNull(),
+  subject: varchar('subject', { length: 255 }).notNull(),
+  content: text('content').notNull(),
+  status: varchar('status', { length: 20 }).notNull().default('draft'), // 'draft', 'scheduled', 'sent', 'cancelled'
+  type: varchar('type', { length: 50 }).notNull().default('general'), // 'general', 'product_catalog', 'promotional'
+  scheduledAt: timestamp('scheduled_at'),
+  sentAt: timestamp('sent_at'),
+  recipientCount: integer('recipient_count').default(0),
+  openCount: integer('open_count').default(0),
+  clickCount: integer('click_count').default(0),
+  createdBy: integer('created_by').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// Newsletter Campaign Products junction table
+export const newsletterCampaignProducts = pgTable('newsletter_campaign_products', {
+  id: serial('id').primaryKey(),
+  campaignId: integer('campaign_id').references(() => newsletterCampaigns.id, { onDelete: 'cascade' }),
+  productId: integer('product_id').references(() => products.id, { onDelete: 'cascade' }),
+  displayOrder: integer('display_order').default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+});
 // Categories table
 export const categories = pgTable('categories', {
   id: serial('id').primaryKey(),
@@ -166,6 +225,8 @@ export const productCategories = pgTable('product_categories', {
   productId: integer('product_id').references(() => products.id, { onDelete: 'cascade' }),
   categoryId: integer('category_id').references(() => categories.id, { onDelete: 'cascade' }),
 });
+
+
 
 // Define relationships
 export const productsRelations = relations(products, ({ many }) => ({
@@ -240,6 +301,25 @@ export const productCategoriesRelations = relations(productCategories, ({ one })
   }),
 }));
 
+export const newsletterCampaignsRelations = relations(newsletterCampaigns, ({ one, many }) => ({
+  createdBy: one(users, {
+    fields: [newsletterCampaigns.createdBy],
+    references: [users.id],
+  }),
+  products: many(newsletterCampaignProducts),
+}));
+
+export const newsletterCampaignProductsRelations = relations(newsletterCampaignProducts, ({ one }) => ({
+  campaign: one(newsletterCampaigns, {
+    fields: [newsletterCampaignProducts.campaignId],
+    references: [newsletterCampaigns.id],
+  }),
+  product: one(products, {
+    fields: [newsletterCampaignProducts.productId],
+    references: [products.id],
+  }),
+}));
+
 export const wishlistRelations = relations(wishlist, ({ one }) => ({
   user: one(users, {
     fields: [wishlist.userId],
@@ -248,5 +328,12 @@ export const wishlistRelations = relations(wishlist, ({ one }) => ({
   product: one(products, {
     fields: [wishlist.productId],
     references: [products.id],
+  }),
+}));
+
+export const contactMessagesRelations = relations(contactMessages, ({ one }) => ({
+  user: one(users, {
+    fields: [contactMessages.userId],
+    references: [users.id],
   }),
 }));

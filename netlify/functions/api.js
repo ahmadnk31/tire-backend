@@ -74,6 +74,7 @@ try {
   const bulkRouter = require('../../dist/src/routes/bulk');
   const stripeRoutes = require('../../dist/src/routes/stripe');
   const stripeWebhookRouter = require('../../dist/src/routes/stripe-webhook');
+  const contactRouter = require('../../dist/src/routes/contact');
 
   // Mount webhook BEFORE other routes (needs raw body)
   app.use('/api', stripeWebhookRouter.default || stripeWebhookRouter);
@@ -92,6 +93,7 @@ try {
   app.use('/api/banners', bannersRouter.default || bannersRouter);
   app.use('/api/settings', settingsRouter.default || settingsRouter);
   app.use('/api/bulk', bulkRouter.default || bulkRouter);
+  app.use('/api/contact', contactRouter.default || contactRouter);
   app.use('/api/stripe', stripeRoutes.default || stripeRoutes);
 
 } catch (error) {
@@ -206,6 +208,22 @@ app.get('/api', (req, res) => {
         'POST /api/bulk/products',
         'POST /api/bulk/categories',
         'POST /api/bulk/users'
+      ],
+      contact: [
+        'POST /api/contact',
+        'POST /api/contact/newsletter',
+        'GET /api/contact/info',
+        'GET /api/contact/faqs',
+        'GET /api/contact/messages (admin)',
+        'PUT /api/contact/messages/:id (admin)'
+      ],
+      contact: [
+        'POST /api/contact',
+        'POST /api/contact/newsletter',
+        'GET /api/contact/info',
+        'GET /api/contact/faqs',
+        'GET /api/contact/messages',
+        'PUT /api/contact/messages/:id'
       ]
     }
   });

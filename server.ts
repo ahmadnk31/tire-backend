@@ -152,9 +152,12 @@ import stripeRoutes from "./src/routes/stripe";
 import settingsRouter from './src/routes/settings';
 import bannersRouter from './src/routes/banners';
 import bulkRouter from './src/routes/bulk';
+import contactRouter from './src/routes/contact';
+
 
 // Apply additional rate limiting to specific routes
 app.use('/api/auth', authRouter);
+
 app.use('/api/admin', adminRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/orders', ordersRouter);
@@ -167,7 +170,9 @@ app.use('/api/wishlist', wishlistRouter);
 app.use('/api/banners', bannersRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/bulk', bulkRouter);
+app.use('/api/contact', contactRouter);
 app.use('/api/stripe', stripeRoutes);
+
 
 // Remove duplicate stripe routes registration
 // app.use("/api", stripeRoutes); // This was causing conflicts
