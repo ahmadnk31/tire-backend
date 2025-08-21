@@ -44,12 +44,31 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 }
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  if (!(req as any).user || (req as any).user.role !== 'admin') {
+  console.log('🔒 Admin check:', {
+    hasUser: !!(req as any).user,
+    userRole: (req as any).user?.role,
+    userId: (req as any).user?.id,
+    userEmail: (req as any).user?.email
+  });
+
+  if (!(req as any).user) {
+    console.log('❌ No user found in request');
     return res.status(403).json({ 
       error: 'Forbidden: Admins only',
-      message: 'You do not have administrator privileges'
+      message: 'No user found in request'
     });
   }
+
+  const userRole = (req as any).user.role;
+  if (userRole !== 'admin') {
+    console.log('❌ User role mismatch:', { expected: 'admin', actual: userRole });
+    return res.status(403).json({ 
+      error: 'Forbidden: Admins only',
+      message: `You do not have administrator privileges. Current role: ${userRole || 'none'}`
+    });
+  }
+
+  console.log('✅ Admin access granted');
   next();
 }
 

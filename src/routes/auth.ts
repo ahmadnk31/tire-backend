@@ -334,4 +334,53 @@ router.post('/emergency-clear-blocks', async (req: Request, res: Response) => {
   }
 });
 
+// Debug endpoint to check current user info
+router.get('/me', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    console.log('🔍 Checking user info for ID:', userId);
+    
+    const user = await db.query.users.findFirst({ 
+      where: eq(users.id, userId),
+      columns: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        emailVerified: true,
+        isActive: true
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    console.log('👤 User details from DB:', {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      emailVerified: user.emailVerified
+    });
+    
+    console.log('🎫 JWT payload:', (req as any).user);
+    
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        emailVerified: user.emailVerified,
+        isActive: user.isActive
+      },
+      jwtPayload: (req as any).user
+    });
+  } catch (error) {
+    console.error('Error getting user info:', error);
+    res.status(500).json({ error: 'Failed to get user info' });
+  }
+});
+
 export default router;
