@@ -371,7 +371,7 @@ router.get('/:id', validation_1.idParamValidation, validation_1.handleValidation
         res.status(500).json({ error: 'Failed to fetch product' });
     }
 });
-router.post('/', auth_1.requireAdmin, validation_1.productValidation, validation_1.handleValidationErrors, async (req, res) => {
+router.post('/', auth_1.requireAuth, auth_1.requireAdmin, validation_1.productValidation, validation_1.handleValidationErrors, async (req, res) => {
     try {
         const { name, brand, model, size, price, comparePrice, stock, lowStockThreshold, status = 'draft', featured = false, sku, description, features, specifications, tags, tireWidth, aspectRatio, rimDiameter, loadIndex, speedRating, seasonType, tireType, seoTitle, seoDescription, productImages: newImages = [], categoryIds = [] } = req.body;
         const finalSku = sku || `${brand.substring(0, 3).toUpperCase()}-${model.substring(0, 3).toUpperCase()}-${size.replace(/[\/]/g, '-')}`;
@@ -434,7 +434,7 @@ router.post('/', auth_1.requireAdmin, validation_1.productValidation, validation
         }
     }
 });
-router.put('/:id', auth_1.requireAdmin, validation_1.idParamValidation, validation_1.productValidation, validation_1.handleValidationErrors, async (req, res) => {
+router.put('/:id', auth_1.requireAuth, auth_1.requireAdmin, validation_1.idParamValidation, validation_1.productValidation, validation_1.handleValidationErrors, async (req, res) => {
     try {
         const productId = parseInt(req.params.id);
         const { productImages: newImages, categoryIds, tireWidth, aspectRatio, rimDiameter, size: providedSize, price, comparePrice, ...otherData } = req.body;
@@ -488,7 +488,7 @@ router.put('/:id', auth_1.requireAdmin, validation_1.idParamValidation, validati
         res.status(500).json({ error: 'Failed to update product' });
     }
 });
-router.delete('/:id', auth_1.requireAdmin, validation_1.idParamValidation, validation_1.handleValidationErrors, async (req, res) => {
+router.delete('/:id', auth_1.requireAuth, auth_1.requireAdmin, validation_1.idParamValidation, validation_1.handleValidationErrors, async (req, res) => {
     try {
         const productId = parseInt(req.params.id);
         const result = await db_1.db.delete(schema_1.products)

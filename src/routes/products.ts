@@ -499,7 +499,7 @@ router.get('/:id', idParamValidation, handleValidationErrors, async (req: expres
 
 // POST /api/products - Create new product
 // Create a new product (admin only)
-router.post('/', requireAdmin, productValidation, handleValidationErrors, async (req: express.Request, res: express.Response) => {
+router.post('/', requireAuth, requireAdmin, productValidation, handleValidationErrors, async (req: express.Request, res: express.Response) => {
   try {
     const {
       name,
@@ -608,7 +608,7 @@ router.post('/', requireAdmin, productValidation, handleValidationErrors, async 
 
 // PUT /api/products/:id - Update product
 // Update a product (admin only)
-router.put('/:id', requireAdmin, idParamValidation, productValidation, handleValidationErrors, async (req: express.Request, res: express.Response) => {
+router.put('/:id', requireAuth, requireAdmin, idParamValidation, productValidation, handleValidationErrors, async (req: express.Request, res: express.Response) => {
   try {
     const productId = parseInt(req.params.id);
     const {
@@ -694,7 +694,7 @@ router.put('/:id', requireAdmin, idParamValidation, productValidation, handleVal
 
 // DELETE /api/products/:id - Delete product
 // Delete a product (admin only)
-router.delete('/:id', requireAdmin, idParamValidation, handleValidationErrors, async (req: express.Request, res: express.Response) => {
+router.delete('/:id', requireAuth, requireAdmin, idParamValidation, handleValidationErrors, async (req: express.Request, res: express.Response) => {
   try {
     const productId = parseInt(req.params.id);
     
