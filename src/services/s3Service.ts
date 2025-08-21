@@ -21,6 +21,14 @@ class S3Service {
   private bucketName: string;
 
   constructor() {
+    // Log configuration for debugging (without sensitive data)
+    console.log('🔧 S3Service Configuration:', {
+      region: process.env.MY_AWS_REGION || 'us-east-1',
+      bucket: process.env.MY_AWS_S3_BUCKET_NAME || 'tire-store-images',
+      hasAccessKey: !!process.env.MY_AWS_ACCESS_KEY_ID,
+      hasSecretKey: !!process.env.MY_AWS_SECRET_ACCESS_KEY,
+    });
+
     this.s3Client = new S3Client({
       region: process.env.MY_AWS_REGION || 'us-east-1',
       credentials: {
@@ -36,6 +44,14 @@ class S3Service {
    */
   async uploadFile({ file, filename, mimetype, folder = 'products' }: UploadParams): Promise<string> {
     try {
+      console.log('📤 Starting S3 upload:', {
+        filename,
+        mimetype,
+        folder,
+        fileSize: file.length,
+        bucketName: this.bucketName
+      });
+
       const fileExtension = path.extname(filename);
       const uniqueFilename = `${uuidv4()}${fileExtension}`;
       const key = folder ? `${folder}/${uniqueFilename}` : uniqueFilename;
@@ -53,11 +69,31 @@ class S3Service {
 
       await this.s3Client.send(command);
 
-      // Return the public URL
-      return `https://${this.bucketName}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+      // Use consistent region environment variable
+      const region = process.env.MY_AWS_REGION || 'us-east-1';
+      const imageUrl = `https://${this.bucketName}.s3.${region}.amazonaws.com/${key}`;
+      
+      console.log('✅ S3 upload successful:', {
+        key,
+        imageUrl,
+        originalFilename: filename
+      });
+
+      return imageUrl;
     } catch (error) {
-      console.error('Error uploading file to S3:', error);
-      throw new Error('Failed to upload file');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      
+      console.error('❌ S3 upload error:', {
+        error: errorMessage,
+        stack: errorStack,
+        filename,
+        mimetype,
+        bucketName: this.bucketName,
+        region: process.env.MY_AWS_REGION,
+        hasCredentials: !!(process.env.MY_AWS_ACCESS_KEY_ID && process.env.MY_AWS_SECRET_ACCESS_KEY)
+      });
+      throw new Error(`S3 upload failed: ${errorMessage}`);
     }
   }
 
@@ -121,6 +157,68 @@ class S3Service {
       return urlObj.pathname.substring(1); // Remove leading slash
     } catch (error) {
       throw new Error('Invalid S3 URL format');
+    }
+  }
+
+  /**
+   * Validate S3 configuration
+   */
+  static validateConfiguration(): { isValid: boolean; issues: string[] } {
+    const issues: string[] = [];
+    
+    if (!process.env.MY_AWS_ACCESS_KEY_ID) {
+      issues.push('MY_AWS_ACCESS_KEY_ID environment variable is missing');
+    }
+    
+    if (!process.env.MY_AWS_SECRET_ACCESS_KEY) {
+      issues.push('MY_AWS_SECRET_ACCESS_KEY environment variable is missing');
+    }
+    
+    if (!process.env.MY_AWS_S3_BUCKET_NAME) {
+      issues.push('MY_AWS_S3_BUCKET_NAME environment variable is missing');
+    }
+    
+    if (!process.env.MY_AWS_REGION) {
+      issues.push('MY_AWS_REGION environment variable is missing (will default to us-east-1)');
+    }
+    
+    return {
+      isValid: issues.length === 0,
+      issues
+    };
+  }
+
+  /**
+   * Test S3 connection by attempting to list bucket
+   */
+  async testConnection(): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Try to put a small test object
+      const testKey = `test-connection-${Date.now()}.txt`;
+      const testCommand = new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: testKey,
+        Body: Buffer.from('test connection'),
+        ContentType: 'text/plain',
+      });
+      
+      await this.s3Client.send(testCommand);
+      
+      // Clean up test object
+      const deleteCommand = new DeleteObjectCommand({
+        Bucket: this.bucketName,
+        Key: testKey,
+      });
+      
+      await this.s3Client.send(deleteCommand);
+      
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return { 
+        success: false, 
+        error: errorMessage 
+      };
     }
   }
 
