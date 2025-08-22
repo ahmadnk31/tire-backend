@@ -508,6 +508,17 @@ router.put('/:id', auth_1.requireAuth, auth_1.requireAdmin, validation_1.idParam
         if (tireWidth && aspectRatio && rimDiameter) {
             finalSize = `${tireWidth}/${aspectRatio}R${rimDiameter}`;
         }
+        if (otherData.sku) {
+            const existingProduct = await db_1.db.select()
+                .from(schema_1.products)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.products.sku, otherData.sku), (0, drizzle_orm_1.ne)(schema_1.products.id, productId)));
+            if (existingProduct.length > 0) {
+                return res.status(400).json({
+                    error: 'SKU already exists',
+                    details: `SKU "${otherData.sku}" is already used by another product`
+                });
+            }
+        }
         const updateData = {
             ...otherData,
             size: finalSize,

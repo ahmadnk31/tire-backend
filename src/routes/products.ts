@@ -4,7 +4,7 @@
 
 
 import express from 'express';
-import { eq, and, like, gte, lte, desc, asc, or, count, SQL, inArray } from 'drizzle-orm';
+import { eq, and, like, gte, lte, desc, asc, or, count, SQL, inArray, ne } from 'drizzle-orm';
 import { db } from '../db';
 import { products, productImages, productCategories, categories } from '../db/schema';
 import Fuse from 'fuse.js';
@@ -715,6 +715,23 @@ router.put('/:id', requireAuth, requireAdmin, idParamValidation, productValidati
     let finalSize = providedSize;
     if (tireWidth && aspectRatio && rimDiameter) {
       finalSize = `${tireWidth}/${aspectRatio}R${rimDiameter}`;
+    }
+
+    // Check for SKU uniqueness if SKU is being updated
+    if (otherData.sku) {
+      const existingProduct = await db.select()
+        .from(products)
+        .where(and(
+          eq(products.sku, otherData.sku),
+          ne(products.id, productId)
+        ));
+      
+      if (existingProduct.length > 0) {
+        return res.status(400).json({ 
+          error: 'SKU already exists', 
+          details: `SKU "${otherData.sku}" is already used by another product` 
+        });
+      }
     }
 
     const updateData = {
