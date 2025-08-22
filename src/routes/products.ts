@@ -427,10 +427,30 @@ router.get('/', advancedSearchValidation, handleValidationErrors, async (req: ex
       seoTitle: p.seoTitle || '',
       seoDescription: p.seoDescription || ''
     }));
+
+    // Fetch images for all products
+    let imagesByProductId: Record<number, any[]> = {};
+    if (productIds.length > 0) {
+      const images = await db.select().from(productImages).where(inArray(productImages.productId, productIds));
+      imagesByProductId = images
+        .filter(img => img.productId !== null)
+        .reduce((acc, img) => {
+          if (!acc[img.productId!]) acc[img.productId!] = [];
+          acc[img.productId!].push(img);
+          return acc;
+        }, {} as Record<number, any[]>);
+    }
+
+    // Attach images to each product
+    const resultWithCategoriesAndImages = resultWithCategories.map(p => ({
+      ...p,
+      productImages: imagesByProductId[p.id] || []
+    }));
+
     // Debug: print filtered products and their categoryIds
-    console.log('[DEBUG] Filtered products:', resultWithCategories.map(p => ({ id: p.id, name: p.name, categoryIds: p.categoryIds })));
+    console.log('[DEBUG] Filtered products:', resultWithCategoriesAndImages.map(p => ({ id: p.id, name: p.name, categoryIds: p.categoryIds })));
     res.json({
-      products: resultWithCategories,
+      products: resultWithCategoriesAndImages,
       pagination: {
         currentPage: pageNum,
         totalPages: Math.ceil(totalProducts / limitNum),

@@ -313,9 +313,25 @@ router.get('/', validation_1.advancedSearchValidation, validation_1.handleValida
             seoTitle: p.seoTitle || '',
             seoDescription: p.seoDescription || ''
         }));
-        console.log('[DEBUG] Filtered products:', resultWithCategories.map(p => ({ id: p.id, name: p.name, categoryIds: p.categoryIds })));
+        let imagesByProductId = {};
+        if (productIds.length > 0) {
+            const images = await db_1.db.select().from(schema_1.productImages).where((0, drizzle_orm_1.inArray)(schema_1.productImages.productId, productIds));
+            imagesByProductId = images
+                .filter(img => img.productId !== null)
+                .reduce((acc, img) => {
+                if (!acc[img.productId])
+                    acc[img.productId] = [];
+                acc[img.productId].push(img);
+                return acc;
+            }, {});
+        }
+        const resultWithCategoriesAndImages = resultWithCategories.map(p => ({
+            ...p,
+            productImages: imagesByProductId[p.id] || []
+        }));
+        console.log('[DEBUG] Filtered products:', resultWithCategoriesAndImages.map(p => ({ id: p.id, name: p.name, categoryIds: p.categoryIds })));
         res.json({
-            products: resultWithCategories,
+            products: resultWithCategoriesAndImages,
             pagination: {
                 currentPage: pageNum,
                 totalPages: Math.ceil(totalProducts / limitNum),
