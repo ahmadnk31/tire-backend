@@ -367,6 +367,213 @@ router.get('/', validation_1.advancedSearchValidation, validation_1.handleValida
         res.status(500).json({ error: 'Failed to fetch products' });
     }
 });
+router.get('/brands', async (req, res) => {
+    try {
+        const result = await db_1.db.select({
+            brand: schema_1.products.brand,
+            productCount: (0, drizzle_orm_1.count)(schema_1.products.id),
+        })
+            .from(schema_1.products)
+            .where((0, drizzle_orm_1.eq)(schema_1.products.status, 'published'))
+            .groupBy(schema_1.products.brand)
+            .orderBy((0, drizzle_orm_1.asc)(schema_1.products.brand));
+        res.json({ brands: result });
+    }
+    catch (error) {
+        console.error('Error fetching brands:', error);
+        res.status(500).json({ error: 'Failed to fetch brands' });
+    }
+});
+router.get('/brands/:brand', async (req, res) => {
+    try {
+        const { brand } = req.params;
+        const result = await db_1.db.select()
+            .from(schema_1.products)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.products.status, 'published'), (0, drizzle_orm_1.eq)(schema_1.products.brand, brand)));
+        const productIds = result.map(p => p.id);
+        let imagesByProductId = {};
+        if (productIds.length > 0) {
+            const images = await db_1.db.select().from(schema_1.productImages).where((0, drizzle_orm_1.inArray)(schema_1.productImages.productId, productIds));
+            imagesByProductId = images
+                .filter(img => img.productId !== null)
+                .reduce((acc, img) => {
+                if (!acc[img.productId])
+                    acc[img.productId] = [];
+                acc[img.productId].push(img);
+                return acc;
+            }, {});
+        }
+        const resultWithImages = result.map(p => ({
+            ...p,
+            productImages: imagesByProductId[p.id] || [],
+            images: imagesByProductId[p.id] || []
+        }));
+        res.json({ products: resultWithImages });
+    }
+    catch (error) {
+        console.error('Error fetching brand products:', error);
+        res.status(500).json({ error: 'Failed to fetch brand products' });
+    }
+});
+router.get('/categories/:category', async (req, res) => {
+    try {
+        const { category } = req.params;
+        const result = await db_1.db.select({
+            id: schema_1.products.id,
+            name: schema_1.products.name,
+            brand: schema_1.products.brand,
+            model: schema_1.products.model,
+            size: schema_1.products.size,
+            price: schema_1.products.price,
+            comparePrice: schema_1.products.comparePrice,
+            stock: schema_1.products.stock,
+            status: schema_1.products.status,
+            featured: schema_1.products.featured,
+            sku: schema_1.products.sku,
+            description: schema_1.products.description,
+            features: schema_1.products.features,
+            specifications: schema_1.products.specifications,
+            tags: schema_1.products.tags,
+            tireWidth: schema_1.products.tireWidth,
+            aspectRatio: schema_1.products.aspectRatio,
+            rimDiameter: schema_1.products.rimDiameter,
+            loadIndex: schema_1.products.loadIndex,
+            speedRating: schema_1.products.speedRating,
+            seasonType: schema_1.products.seasonType,
+            tireType: schema_1.products.tireType,
+            createdAt: schema_1.products.createdAt,
+            updatedAt: schema_1.products.updatedAt,
+            imageUrl: schema_1.productImages.imageUrl,
+            imageAltText: schema_1.productImages.altText,
+            imageIsMain: schema_1.productImages.isPrimary,
+        })
+            .from(schema_1.products)
+            .leftJoin(schema_1.productImages, (0, drizzle_orm_1.eq)(schema_1.products.id, schema_1.productImages.productId))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.products.status, 'published'), (0, drizzle_orm_1.eq)(schema_1.products.seasonType, category)));
+        const productsWithImages = result.reduce((acc, row) => {
+            const existingProduct = acc.find(p => p.id === row.id);
+            if (existingProduct) {
+                if (row.imageUrl) {
+                    existingProduct.images.push({
+                        imageUrl: row.imageUrl,
+                        altText: row.imageAltText,
+                        isPrimary: row.imageIsMain
+                    });
+                }
+            }
+            else {
+                const product = {
+                    id: row.id,
+                    name: row.name,
+                    brand: row.brand,
+                    model: row.model,
+                    size: row.size,
+                    price: row.price,
+                    comparePrice: row.comparePrice,
+                    stock: row.stock,
+                    status: row.status,
+                    featured: row.featured,
+                    sku: row.sku,
+                    description: row.description,
+                    features: row.features,
+                    specifications: row.specifications,
+                    tags: row.tags,
+                    tireWidth: row.tireWidth,
+                    aspectRatio: row.aspectRatio,
+                    rimDiameter: row.rimDiameter,
+                    loadIndex: row.loadIndex,
+                    speedRating: row.speedRating,
+                    seasonType: row.seasonType,
+                    tireType: row.tireType,
+                    createdAt: row.createdAt,
+                    updatedAt: row.updatedAt,
+                    images: row.imageUrl ? [{
+                            imageUrl: row.imageUrl,
+                            altText: row.imageAltText,
+                            isPrimary: row.imageIsMain
+                        }] : []
+                };
+                acc.push(product);
+            }
+            return acc;
+        }, []);
+        res.json({ products: productsWithImages });
+    }
+    catch (error) {
+        console.error('Error fetching category products:', error);
+        res.status(500).json({ error: 'Failed to fetch category products' });
+    }
+});
+router.get('/on-sale', validation_1.paginationValidation, validation_1.handleValidationErrors, async (req, res) => {
+    try {
+        const result = await db_1.db.select()
+            .from(schema_1.products)
+            .where((0, drizzle_orm_1.eq)(schema_1.products.status, 'published'));
+        const onSaleProducts = result.filter(product => product.comparePrice && product.comparePrice > product.price);
+        const productIds = onSaleProducts.map(p => p.id);
+        let imagesByProductId = {};
+        if (productIds.length > 0) {
+            const images = await db_1.db.select().from(schema_1.productImages).where((0, drizzle_orm_1.inArray)(schema_1.productImages.productId, productIds));
+            imagesByProductId = images
+                .filter(img => img.productId !== null)
+                .reduce((acc, img) => {
+                if (!acc[img.productId])
+                    acc[img.productId] = [];
+                acc[img.productId].push(img);
+                return acc;
+            }, {});
+        }
+        const resultWithImages = onSaleProducts.map(p => ({
+            ...p,
+            productImages: imagesByProductId[p.id] || [],
+            images: imagesByProductId[p.id] || []
+        }));
+        res.json({ products: resultWithImages });
+    }
+    catch (error) {
+        console.error('Error fetching on-sale products:', error);
+        res.status(500).json({ error: 'Failed to fetch on-sale products' });
+    }
+});
+router.get('/new-arrivals', validation_1.paginationValidation, validation_1.handleValidationErrors, async (req, res) => {
+    try {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const result = await db_1.db.select()
+            .from(schema_1.products)
+            .where((0, drizzle_orm_1.eq)(schema_1.products.status, 'published'))
+            .orderBy((0, drizzle_orm_1.desc)(schema_1.products.createdAt));
+        const newArrivals = result.filter(product => {
+            if (!product.createdAt)
+                return false;
+            const productDate = new Date(product.createdAt);
+            return productDate >= thirtyDaysAgo;
+        });
+        const productIds = newArrivals.map(p => p.id);
+        let imagesByProductId = {};
+        if (productIds.length > 0) {
+            const images = await db_1.db.select().from(schema_1.productImages).where((0, drizzle_orm_1.inArray)(schema_1.productImages.productId, productIds));
+            imagesByProductId = images
+                .filter(img => img.productId !== null)
+                .reduce((acc, img) => {
+                if (!acc[img.productId])
+                    acc[img.productId] = [];
+                acc[img.productId].push(img);
+                return acc;
+            }, {});
+        }
+        const resultWithImages = newArrivals.map(p => ({
+            ...p,
+            productImages: imagesByProductId[p.id] || [],
+            images: imagesByProductId[p.id] || []
+        }));
+        res.json({ products: resultWithImages });
+    }
+    catch (error) {
+        console.error('Error fetching new arrivals:', error);
+        res.status(500).json({ error: 'Failed to fetch new arrivals' });
+    }
+});
 router.get('/:id', validation_1.idParamValidation, validation_1.handleValidationErrors, async (req, res) => {
     try {
         const productId = Number(req.params.id);

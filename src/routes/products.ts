@@ -496,6 +496,246 @@ router.get('/', advancedSearchValidation, handleValidationErrors, async (req: ex
   }
 });
 
+// GET /api/products/brands - Get all unique brands with product counts
+router.get('/brands', async (req: express.Request, res: express.Response) => {
+  try {
+    const result = await db.select({
+      brand: products.brand,
+      productCount: count(products.id),
+    })
+    .from(products)
+    .where(eq(products.status, 'published'))
+    .groupBy(products.brand)
+    .orderBy(asc(products.brand));
+    
+    res.json({ brands: result });
+  } catch (error) {
+    console.error('Error fetching brands:', error);
+    res.status(500).json({ error: 'Failed to fetch brands' });
+  }
+});
+
+// GET /api/products/brands/:brand - Get products by specific brand
+router.get('/brands/:brand', async (req: express.Request, res: express.Response) => {
+  try {
+    const { brand } = req.params;
+    
+    const result = await db.select()
+      .from(products)
+      .where(and(
+        eq(products.status, 'published'),
+        eq(products.brand, brand)
+      ));
+    
+    // Attach images to products
+    const productIds = result.map(p => p.id);
+    let imagesByProductId: Record<number, any[]> = {};
+    if (productIds.length > 0) {
+      const images = await db.select().from(productImages).where(inArray(productImages.productId, productIds));
+      imagesByProductId = images
+        .filter(img => img.productId !== null)
+        .reduce((acc, img) => {
+          if (!acc[img.productId!]) acc[img.productId!] = [];
+          acc[img.productId!].push(img);
+          return acc;
+        }, {} as Record<number, any[]>);
+    }
+    
+    const resultWithImages = result.map(p => ({
+      ...p,
+      productImages: imagesByProductId[p.id] || [],
+      images: imagesByProductId[p.id] || []
+    }));
+    
+    res.json({ products: resultWithImages });
+  } catch (error) {
+    console.error('Error fetching brand products:', error);
+    res.status(500).json({ error: 'Failed to fetch brand products' });
+  }
+});
+
+// GET /api/products/categories/:category - Get products by specific category
+router.get('/categories/:category', async (req: express.Request, res: express.Response) => {
+  try {
+    const { category } = req.params;
+    
+    const result = await db.select({
+      // Product fields
+      id: products.id,
+      name: products.name,
+      brand: products.brand,
+      model: products.model,
+      size: products.size,
+      price: products.price,
+      comparePrice: products.comparePrice,
+      stock: products.stock,
+      status: products.status,
+      featured: products.featured,
+      sku: products.sku,
+      description: products.description,
+      features: products.features,
+      specifications: products.specifications,
+      tags: products.tags,
+      tireWidth: products.tireWidth,
+      aspectRatio: products.aspectRatio,
+      rimDiameter: products.rimDiameter,
+      loadIndex: products.loadIndex,
+      speedRating: products.speedRating,
+      seasonType: products.seasonType,
+      tireType: products.tireType,
+      createdAt: products.createdAt,
+      updatedAt: products.updatedAt,
+      // Image info
+      imageUrl: productImages.imageUrl,
+      imageAltText: productImages.altText,
+      imageIsMain: productImages.isPrimary,
+    })
+    .from(products)
+    .leftJoin(productImages, eq(products.id, productImages.productId))
+    .where(and(
+      eq(products.status, 'published'),
+      eq(products.seasonType, category)
+    ));
+    
+    // Group by product and collect images
+    const productsWithImages = result.reduce((acc: any[], row: any) => {
+      const existingProduct = acc.find(p => p.id === row.id);
+      if (existingProduct) {
+        if (row.imageUrl) {
+          existingProduct.images.push({
+            imageUrl: row.imageUrl,
+            altText: row.imageAltText,
+            isPrimary: row.imageIsMain
+          });
+        }
+      } else {
+        const product = {
+          id: row.id,
+          name: row.name,
+          brand: row.brand,
+          model: row.model,
+          size: row.size,
+          price: row.price,
+          comparePrice: row.comparePrice,
+          stock: row.stock,
+          status: row.status,
+          featured: row.featured,
+          sku: row.sku,
+          description: row.description,
+          features: row.features,
+          specifications: row.specifications,
+          tags: row.tags,
+          tireWidth: row.tireWidth,
+          aspectRatio: row.aspectRatio,
+          rimDiameter: row.rimDiameter,
+          loadIndex: row.loadIndex,
+          speedRating: row.speedRating,
+          seasonType: row.seasonType,
+          tireType: row.tireType,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+          images: row.imageUrl ? [{
+            imageUrl: row.imageUrl,
+            altText: row.imageAltText,
+            isPrimary: row.imageIsMain
+          }] : []
+        };
+        acc.push(product);
+      }
+      return acc;
+    }, []);
+    
+    res.json({ products: productsWithImages });
+  } catch (error) {
+    console.error('Error fetching category products:', error);
+    res.status(500).json({ error: 'Failed to fetch category products' });
+  }
+});
+
+// GET /api/products/on-sale - Get products with compare price (on sale)
+router.get('/on-sale', paginationValidation, handleValidationErrors, async (req: express.Request, res: express.Response) => {
+  try {
+    const result = await db.select()
+      .from(products)
+      .where(eq(products.status, 'published'));
+    
+    // Filter products with compare price greater than current price
+    const onSaleProducts = result.filter(product => 
+      product.comparePrice && product.comparePrice > product.price
+    );
+    
+    // Attach images to products
+    const productIds = onSaleProducts.map(p => p.id);
+    let imagesByProductId: Record<number, any[]> = {};
+    if (productIds.length > 0) {
+      const images = await db.select().from(productImages).where(inArray(productImages.productId, productIds));
+      imagesByProductId = images
+        .filter(img => img.productId !== null)
+        .reduce((acc, img) => {
+          if (!acc[img.productId!]) acc[img.productId!] = [];
+          acc[img.productId!].push(img);
+          return acc;
+        }, {} as Record<number, any[]>);
+    }
+    
+    const resultWithImages = onSaleProducts.map(p => ({
+      ...p,
+      productImages: imagesByProductId[p.id] || [],
+      images: imagesByProductId[p.id] || []
+    }));
+    
+    res.json({ products: resultWithImages });
+  } catch (error) {
+    console.error('Error fetching on-sale products:', error);
+    res.status(500).json({ error: 'Failed to fetch on-sale products' });
+  }
+});
+
+// GET /api/products/new-arrivals - Get recently created products
+router.get('/new-arrivals', paginationValidation, handleValidationErrors, async (req: express.Request, res: express.Response) => {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const result = await db.select()
+      .from(products)
+      .where(eq(products.status, 'published'))
+      .orderBy(desc(products.createdAt));
+    
+    // Filter products created in the last 30 days
+    const newArrivals = result.filter(product => {
+      if (!product.createdAt) return false;
+      const productDate = new Date(product.createdAt);
+      return productDate >= thirtyDaysAgo;
+    });
+    
+    // Attach images to products
+    const productIds = newArrivals.map(p => p.id);
+    let imagesByProductId: Record<number, any[]> = {};
+    if (productIds.length > 0) {
+      const images = await db.select().from(productImages).where(inArray(productImages.productId, productIds));
+      imagesByProductId = images
+        .filter(img => img.productId !== null)
+        .reduce((acc, img) => {
+          if (!acc[img.productId!]) acc[img.productId!] = [];
+          acc[img.productId!].push(img);
+          return acc;
+        }, {} as Record<number, any[]>);
+    }
+    
+    const resultWithImages = newArrivals.map(p => ({
+      ...p,
+      productImages: imagesByProductId[p.id] || [],
+      images: imagesByProductId[p.id] || []
+    }));
+    
+    res.json({ products: resultWithImages });
+  } catch (error) {
+    console.error('Error fetching new arrivals:', error);
+    res.status(500).json({ error: 'Failed to fetch new arrivals' });
+  }
+});
+
 // GET /api/products/:id - Get single product
 // Get a single product by ID
 router.get('/:id', idParamValidation, handleValidationErrors, async (req: express.Request, res: express.Response) => {
@@ -966,6 +1206,5 @@ router.get('/:id/related', idParamValidation, handleValidationErrors, async (req
     res.status(500).json({ error: 'Failed to fetch related products' });
   }
 });
-
 
 export default router;
