@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import { products, categories, productCategories } from './src/db/schema';
+import { products, categories, productCategories, productImages } from './src/db/schema';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/tire',
@@ -10,7 +10,8 @@ const pool = new Pool({
 const db = drizzle(pool);
 
 async function seed() {
-  // Delete existing products and categories to avoid unique constraint errors
+  // Delete existing data to avoid unique constraint errors
+  await db.delete(productImages);
   await db.delete(productCategories);
   await db.delete(products);
   await db.delete(categories);
@@ -24,7 +25,7 @@ async function seed() {
   ];
   const insertedCategories = await db.insert(categories).values(categoryData).returning();
 
-  // Seed products
+  // Seed products (without images field)
   const productData = [
     {
       name: 'Michelin Pilot Sport 4',
@@ -41,7 +42,6 @@ async function seed() {
       description: 'High performance summer tire.',
       features: JSON.stringify(['Excellent grip', 'Long tread life']),
       specifications: JSON.stringify({ speedRating: 'Y', loadIndex: 94 }),
-      images: JSON.stringify(['https://example.com/michelin-ps4.jpg']),
       tags: JSON.stringify(['summer', 'performance']),
     },
     {
@@ -59,7 +59,6 @@ async function seed() {
       description: 'Premium comfort summer tire.',
       features: JSON.stringify(['Comfort', 'Low noise']),
       specifications: JSON.stringify({ speedRating: 'V', loadIndex: 94 }),
-      images: JSON.stringify(['https://example.com/michelin-primacy4.jpg']),
       tags: JSON.stringify(['summer', 'comfort']),
     },
     {
@@ -77,7 +76,6 @@ async function seed() {
       description: 'Top-rated winter tire.',
       features: JSON.stringify(['Superior snow traction', 'Quiet ride']),
       specifications: JSON.stringify({ speedRating: 'T', loadIndex: 91 }),
-      images: JSON.stringify(['https://example.com/bridgestone-blizzak.jpg']),
       tags: JSON.stringify(['winter']),
     },
     {
@@ -95,7 +93,6 @@ async function seed() {
       description: 'Premium touring tire.',
       features: JSON.stringify(['Wet grip', 'Long life']),
       specifications: JSON.stringify({ speedRating: 'W', loadIndex: 98 }),
-      images: JSON.stringify(['https://example.com/bridgestone-turanza.jpg']),
       tags: JSON.stringify(['touring']),
     },
     {
@@ -113,7 +110,6 @@ async function seed() {
       description: 'All-season tire for all conditions.',
       features: JSON.stringify(['Wet traction', 'Long tread life']),
       specifications: JSON.stringify({ speedRating: 'H', loadIndex: 95 }),
-      images: JSON.stringify(['https://example.com/goodyear-assurance.jpg']),
       tags: JSON.stringify(['all-season']),
     },
     {
@@ -131,7 +127,6 @@ async function seed() {
       description: 'Ultra high performance tire.',
       features: JSON.stringify(['Sporty', 'Responsive']),
       specifications: JSON.stringify({ speedRating: 'Y', loadIndex: 100 }),
-      images: JSON.stringify(['https://example.com/goodyear-eaglef1.jpg']),
       tags: JSON.stringify(['performance']),
     },
     {
@@ -149,7 +144,6 @@ async function seed() {
       description: 'Ultra high performance tire.',
       features: JSON.stringify(['Responsive handling', 'Sporty feel']),
       specifications: JSON.stringify({ speedRating: 'Y', loadIndex: 97 }),
-      images: JSON.stringify(['https://example.com/pirelli-pzero.jpg']),
       tags: JSON.stringify(['performance']),
     },
     {
@@ -167,11 +161,39 @@ async function seed() {
       description: 'Eco-friendly touring tire.',
       features: JSON.stringify(['Eco', 'Comfort']),
       specifications: JSON.stringify({ speedRating: 'V', loadIndex: 91 }),
-      images: JSON.stringify(['https://example.com/pirelli-cinturato.jpg']),
       tags: JSON.stringify(['eco', 'touring']),
     },
   ];
   const insertedProducts = await db.insert(products).values(productData).returning();
+
+  // Seed product images
+  const productImageData = [
+    // Michelin Pilot Sport 4
+    { productId: insertedProducts[0].id, imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop', altText: 'Michelin Pilot Sport 4 tire', isPrimary: true, sortOrder: 1 },
+    { productId: insertedProducts[0].id, imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop&crop=center', altText: 'Michelin Pilot Sport 4 side view', isPrimary: false, sortOrder: 2 },
+    
+    // Michelin Primacy 4
+    { productId: insertedProducts[1].id, imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop', altText: 'Michelin Primacy 4 tire', isPrimary: true, sortOrder: 1 },
+    
+    // Bridgestone Blizzak WS90
+    { productId: insertedProducts[2].id, imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop', altText: 'Bridgestone Blizzak WS90 tire', isPrimary: true, sortOrder: 1 },
+    
+    // Bridgestone Turanza T005
+    { productId: insertedProducts[3].id, imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop', altText: 'Bridgestone Turanza T005 tire', isPrimary: true, sortOrder: 1 },
+    
+    // Goodyear Assurance WeatherReady
+    { productId: insertedProducts[4].id, imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop', altText: 'Goodyear Assurance WeatherReady tire', isPrimary: true, sortOrder: 1 },
+    
+    // Goodyear Eagle F1
+    { productId: insertedProducts[5].id, imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop', altText: 'Goodyear Eagle F1 tire', isPrimary: true, sortOrder: 1 },
+    
+    // Pirelli P Zero
+    { productId: insertedProducts[6].id, imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop', altText: 'Pirelli P Zero tire', isPrimary: true, sortOrder: 1 },
+    
+    // Pirelli Cinturato P7
+    { productId: insertedProducts[7].id, imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop', altText: 'Pirelli Cinturato P7 tire', isPrimary: true, sortOrder: 1 },
+  ];
+  await db.insert(productImages).values(productImageData);
 
   // Link products to categories (all products)
   const productCategoryLinks = [

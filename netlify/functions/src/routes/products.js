@@ -325,10 +325,45 @@ router.get('/', validation_1.advancedSearchValidation, validation_1.handleValida
                 return acc;
             }, {});
         }
-        const resultWithCategoriesAndImages = resultWithCategories.map(p => ({
-            ...p,
-            productImages: imagesByProductId[p.id] || []
-        }));
+        const resultWithCategoriesAndImages = resultWithCategories.map(p => {
+            const productImages = imagesByProductId[p.id] || [];
+            console.log(`[DEBUG] Product ${p.id} has ${productImages.length} images`);
+            const product = {
+                id: p.id,
+                name: p.name,
+                brand: p.brand,
+                model: p.model,
+                sku: p.sku,
+                description: p.description,
+                tireWidth: p.tireWidth,
+                aspectRatio: p.aspectRatio,
+                rimDiameter: p.rimDiameter,
+                size: p.size,
+                loadIndex: p.loadIndex,
+                speedRating: p.speedRating,
+                seasonType: p.seasonType,
+                tireType: p.tireType,
+                price: p.price,
+                comparePrice: p.comparePrice,
+                stock: p.stock,
+                lowStockThreshold: p.lowStockThreshold,
+                status: p.status,
+                featured: p.featured,
+                rating: p.rating,
+                features: p.features,
+                specifications: p.specifications,
+                tags: p.tags,
+                seoTitle: p.seoTitle,
+                seoDescription: p.seoDescription,
+                createdAt: p.createdAt,
+                updatedAt: p.updatedAt,
+                categoryIds: p.categoryIds,
+                productImages: productImages,
+                images: productImages
+            };
+            console.log(`[DEBUG] Product ${p.id} final images field:`, product.images);
+            return product;
+        });
         console.log('[DEBUG] Filtered products:', resultWithCategoriesAndImages.map(p => ({ id: p.id, name: p.name, categoryIds: p.categoryIds })));
         res.json({
             products: resultWithCategoriesAndImages,
@@ -376,6 +411,7 @@ router.get('/:id', validation_1.idParamValidation, validation_1.handleValidation
         const product = {
             ...result[0],
             productImages: images,
+            images: images,
             categories: categoriesForProduct,
             seoTitle: result[0].seoTitle || '',
             seoDescription: result[0].seoDescription || ''
@@ -525,7 +561,25 @@ router.get('/featured/list', validation_1.paginationValidation, validation_1.han
         const result = await db_1.db.select()
             .from(schema_1.products)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.products.featured, true), (0, drizzle_orm_1.eq)(schema_1.products.status, 'published')));
-        res.json({ products: result });
+        const productIds = result.map(p => p.id);
+        let imagesByProductId = {};
+        if (productIds.length > 0) {
+            const images = await db_1.db.select().from(schema_1.productImages).where((0, drizzle_orm_1.inArray)(schema_1.productImages.productId, productIds));
+            imagesByProductId = images
+                .filter(img => img.productId !== null)
+                .reduce((acc, img) => {
+                if (!acc[img.productId])
+                    acc[img.productId] = [];
+                acc[img.productId].push(img);
+                return acc;
+            }, {});
+        }
+        const resultWithImages = result.map(p => ({
+            ...p,
+            productImages: imagesByProductId[p.id] || [],
+            images: imagesByProductId[p.id] || []
+        }));
+        res.json({ products: resultWithImages });
     }
     catch (error) {
         console.error('Error fetching featured products:', error);

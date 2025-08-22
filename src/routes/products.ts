@@ -442,10 +442,14 @@ router.get('/', advancedSearchValidation, handleValidationErrors, async (req: ex
     }
 
     // Attach images to each product
-    const resultWithCategoriesAndImages = resultWithCategories.map(p => ({
-      ...p,
-      productImages: imagesByProductId[p.id] || []
-    }));
+    const resultWithCategoriesAndImages = resultWithCategories.map(p => {
+      const productImages = imagesByProductId[p.id] || [];
+      return {
+        ...p,
+        productImages,
+        images: productImages // Also include as 'images' for consistency
+      };
+    });
 
     // Debug: print filtered products and their categoryIds
     console.log('[DEBUG] Filtered products:', resultWithCategoriesAndImages.map(p => ({ id: p.id, name: p.name, categoryIds: p.categoryIds })));
@@ -504,6 +508,7 @@ router.get('/:id', idParamValidation, handleValidationErrors, async (req: expres
         const product = {
           ...result[0],
           productImages: images,
+          images: images, // Also include as 'images' for consistency
           categories: categoriesForProduct,
           seoTitle: result[0].seoTitle || '',
           seoDescription: result[0].seoDescription || ''
@@ -740,7 +745,28 @@ router.get('/featured/list', paginationValidation, handleValidationErrors, async
     const result = await db.select()
       .from(products)
       .where(and(eq(products.featured, true), eq(products.status, 'published')));
-    res.json({ products: result });
+    
+    // Attach images to featured products
+    const productIds = result.map(p => p.id);
+    let imagesByProductId: Record<number, any[]> = {};
+    if (productIds.length > 0) {
+      const images = await db.select().from(productImages).where(inArray(productImages.productId, productIds));
+      imagesByProductId = images
+        .filter(img => img.productId !== null)
+        .reduce((acc, img) => {
+          if (!acc[img.productId!]) acc[img.productId!] = [];
+          acc[img.productId!].push(img);
+          return acc;
+        }, {} as Record<number, any[]>);
+    }
+    
+    const resultWithImages = result.map(p => ({
+      ...p,
+      productImages: imagesByProductId[p.id] || [],
+      images: imagesByProductId[p.id] || [] // Also include as 'images' for consistency
+    }));
+    
+    res.json({ products: resultWithImages });
   } catch (error) {
     console.error('Error fetching featured products:', error);
     res.status(500).json({ error: 'Failed to fetch featured products' });
