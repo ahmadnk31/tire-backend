@@ -7,7 +7,6 @@ const express_1 = __importDefault(require("express"));
 const drizzle_orm_1 = require("drizzle-orm");
 const db_1 = require("../db");
 const schema_1 = require("../db/schema");
-const { productCategories, categories } = require('../db/schema');
 const fuse_js_1 = __importDefault(require("fuse.js"));
 const auth_1 = require("../middleware/auth");
 const validation_1 = require("../middleware/validation");
@@ -55,14 +54,14 @@ router.get('/search', validation_1.searchValidation, validation_1.handleValidati
             imageUrl: schema_1.productImages.imageUrl,
             imageAltText: schema_1.productImages.altText,
             imageIsMain: schema_1.productImages.isPrimary,
-            categoryId: categories.id,
-            categoryName: categories.name,
-            categorySlug: categories.slug,
+            categoryId: schema_1.categories.id,
+            categoryName: schema_1.categories.name,
+            categorySlug: schema_1.categories.slug,
         })
             .from(schema_1.products)
             .leftJoin(schema_1.productImages, (0, drizzle_orm_1.eq)(schema_1.products.id, schema_1.productImages.productId))
-            .leftJoin(productCategories, (0, drizzle_orm_1.eq)(schema_1.products.id, productCategories.productId))
-            .leftJoin(categories, (0, drizzle_orm_1.eq)(productCategories.categoryId, categories.id));
+            .leftJoin(schema_1.productCategories, (0, drizzle_orm_1.eq)(schema_1.products.id, schema_1.productCategories.productId))
+            .leftJoin(schema_1.categories, (0, drizzle_orm_1.eq)(schema_1.productCategories.categoryId, schema_1.categories.id));
         const productsMap = new Map();
         allProducts.forEach(row => {
             if (!productsMap.has(row.id)) {
@@ -170,13 +169,22 @@ router.get('/', validation_1.advancedSearchValidation, validation_1.handleValida
         }
         const whereConditions = [];
         if (brand && brand !== 'all') {
-            whereConditions.push((0, drizzle_orm_1.eq)(schema_1.products.brand, brand));
+            const brands = Array.isArray(brand) ? brand : [brand];
+            if (brands.length > 0) {
+                whereConditions.push((0, drizzle_orm_1.inArray)(schema_1.products.brand, brands));
+            }
         }
         if (model && model !== 'all') {
-            whereConditions.push((0, drizzle_orm_1.eq)(schema_1.products.model, model));
+            const models = Array.isArray(model) ? model : [model];
+            if (models.length > 0) {
+                whereConditions.push((0, drizzle_orm_1.inArray)(schema_1.products.model, models));
+            }
         }
         if (size && size !== 'all') {
-            whereConditions.push((0, drizzle_orm_1.eq)(schema_1.products.size, size));
+            const sizes = Array.isArray(size) ? size : [size];
+            if (sizes.length > 0) {
+                whereConditions.push((0, drizzle_orm_1.inArray)(schema_1.products.size, sizes));
+            }
         }
         if (status && status !== 'all') {
             whereConditions.push((0, drizzle_orm_1.eq)(schema_1.products.status, status));
@@ -192,22 +200,23 @@ router.get('/', validation_1.advancedSearchValidation, validation_1.handleValida
         }
         let categoryFilterIds = [];
         if (category && category !== 'all') {
-            console.log('[DEBUG] Filtering by category:', category);
+            const categoryFilters = Array.isArray(category) ? category : [category];
+            console.log('[DEBUG] Filtering by categories:', categoryFilters);
             const categoryResults = await db_1.db
-                .select({ id: categories.id })
-                .from(categories)
-                .where((0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(categories.name, category), (0, drizzle_orm_1.eq)(categories.slug, category)));
+                .select({ id: schema_1.categories.id })
+                .from(schema_1.categories)
+                .where((0, drizzle_orm_1.or)(...categoryFilters.map(catFilter => (0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(schema_1.categories.name, catFilter), (0, drizzle_orm_1.eq)(schema_1.categories.slug, catFilter)))));
             categoryFilterIds = categoryResults.map(c => c.id);
             console.log('[DEBUG] Found category IDs:', categoryFilterIds);
             if (categoryFilterIds.length > 0) {
                 const productCategoryResults = await db_1.db
-                    .select({ productId: productCategories.productId })
-                    .from(productCategories)
-                    .where((0, drizzle_orm_1.inArray)(productCategories.categoryId, categoryFilterIds));
+                    .select({ productId: schema_1.productCategories.productId })
+                    .from(schema_1.productCategories)
+                    .where((0, drizzle_orm_1.inArray)(schema_1.productCategories.categoryId, categoryFilterIds));
                 const filteredProductIds = productCategoryResults.map(pc => pc.productId);
                 console.log('[DEBUG] Products in category:', filteredProductIds);
                 if (filteredProductIds.length > 0) {
-                    whereConditions.push((0, drizzle_orm_1.inArray)(schema_1.products.id, filteredProductIds));
+                    whereConditions.push((0, drizzle_orm_1.inArray)(schema_1.products.id, filteredProductIds.filter((id) => id !== null)));
                 }
                 else {
                     whereConditions.push((0, drizzle_orm_1.eq)(schema_1.products.id, -1));
@@ -298,7 +307,7 @@ router.get('/', validation_1.advancedSearchValidation, validation_1.handleValida
         const productIds = result.map(p => p.id);
         let prodCatRows = [];
         if (productIds.length > 0) {
-            const rawRows = await db_1.db.select().from(productCategories).where((0, drizzle_orm_1.inArray)(productCategories.productId, productIds));
+            const rawRows = await db_1.db.select().from(schema_1.productCategories).where((0, drizzle_orm_1.inArray)(schema_1.productCategories.productId, productIds));
             prodCatRows = rawRows.map((row) => ({ productId: row.productId, categoryId: row.categoryId }));
         }
         const categoryIdsByProductId = {};
@@ -327,42 +336,11 @@ router.get('/', validation_1.advancedSearchValidation, validation_1.handleValida
         }
         const resultWithCategoriesAndImages = resultWithCategories.map(p => {
             const productImages = imagesByProductId[p.id] || [];
-            console.log(`[DEBUG] Product ${p.id} has ${productImages.length} images`);
-            const product = {
-                id: p.id,
-                name: p.name,
-                brand: p.brand,
-                model: p.model,
-                sku: p.sku,
-                description: p.description,
-                tireWidth: p.tireWidth,
-                aspectRatio: p.aspectRatio,
-                rimDiameter: p.rimDiameter,
-                size: p.size,
-                loadIndex: p.loadIndex,
-                speedRating: p.speedRating,
-                seasonType: p.seasonType,
-                tireType: p.tireType,
-                price: p.price,
-                comparePrice: p.comparePrice,
-                stock: p.stock,
-                lowStockThreshold: p.lowStockThreshold,
-                status: p.status,
-                featured: p.featured,
-                rating: p.rating,
-                features: p.features,
-                specifications: p.specifications,
-                tags: p.tags,
-                seoTitle: p.seoTitle,
-                seoDescription: p.seoDescription,
-                createdAt: p.createdAt,
-                updatedAt: p.updatedAt,
-                categoryIds: p.categoryIds,
-                productImages: productImages,
+            return {
+                ...p,
+                productImages,
                 images: productImages
             };
-            console.log(`[DEBUG] Product ${p.id} final images field:`, product.images);
-            return product;
         });
         console.log('[DEBUG] Filtered products:', resultWithCategoriesAndImages.map(p => ({ id: p.id, name: p.name, categoryIds: p.categoryIds })));
         res.json({
@@ -402,11 +380,11 @@ router.get('/:id', validation_1.idParamValidation, validation_1.handleValidation
         const images = await db_1.db.select().from(schema_1.productImages)
             .where((0, drizzle_orm_1.eq)(schema_1.productImages.productId, productId))
             .orderBy((0, drizzle_orm_1.asc)(schema_1.productImages.sortOrder));
-        const prodCatRows = await db_1.db.select().from(productCategories).where((0, drizzle_orm_1.eq)(productCategories.productId, productId));
+        const prodCatRows = await db_1.db.select().from(schema_1.productCategories).where((0, drizzle_orm_1.eq)(schema_1.productCategories.productId, productId));
         const categoryIds = prodCatRows.map((pc) => pc.categoryId);
         let categoriesForProduct = [];
         if (categoryIds.length > 0) {
-            categoriesForProduct = await db_1.db.select().from(categories).where((0, drizzle_orm_1.inArray)(categories.id, categoryIds));
+            categoriesForProduct = await db_1.db.select().from(schema_1.categories).where((0, drizzle_orm_1.inArray)(schema_1.categories.id, categoryIds));
         }
         const product = {
             ...result[0],
@@ -425,7 +403,9 @@ router.get('/:id', validation_1.idParamValidation, validation_1.handleValidation
 });
 router.post('/', auth_1.requireAuth, auth_1.requireAdmin, validation_1.productValidation, validation_1.handleValidationErrors, async (req, res) => {
     try {
-        const { name, brand, model, size, price, comparePrice, stock, lowStockThreshold, status = 'draft', featured = false, sku, description, features, specifications, tags, tireWidth, aspectRatio, rimDiameter, loadIndex, speedRating, seasonType, tireType, seoTitle, seoDescription, productImages: newImages = [], categoryIds = [] } = req.body;
+        console.log('🆕 Creating new product with data:', JSON.stringify(req.body, null, 2));
+        console.log('🖼️ Images received in request:', req.body.images || req.body.productImages);
+        const { name, brand, model, size, price, comparePrice, stock, lowStockThreshold, status = 'draft', featured = false, sku, description, features, specifications, tags, tireWidth, aspectRatio, rimDiameter, loadIndex, speedRating, seasonType, tireType, seoTitle, seoDescription, productImages: productImagesData, images, categoryIds = [] } = req.body;
         const finalSku = sku || `${brand.substring(0, 3).toUpperCase()}-${model.substring(0, 3).toUpperCase()}-${size.replace(/[\/]/g, '-')}`;
         let finalSize = size;
         if (tireWidth && aspectRatio && rimDiameter) {
@@ -458,18 +438,48 @@ router.post('/', auth_1.requireAuth, auth_1.requireAdmin, validation_1.productVa
             seoDescription: seoDescription || null,
             updatedAt: new Date(),
         }).returning();
-        if (newImages.length > 0) {
-            const imageInserts = newImages.map((img, index) => ({
-                productId: newProduct[0].id,
-                imageUrl: img.url || img.imageUrl,
-                altText: img.altText || `${name} - Image ${index + 1}`,
-                isPrimary: index === 0,
-                sortOrder: index,
-            }));
-            await db_1.db.insert(schema_1.productImages).values(imageInserts);
+        console.log('🟢 newProduct result:', newProduct);
+        if (!newProduct || !Array.isArray(newProduct) || !newProduct[0] || typeof newProduct[0].id === 'undefined') {
+            console.error('❌ newProduct[0].id is undefined! Cannot insert images.');
+        }
+        const newImages = productImagesData || images;
+        if (newImages && Array.isArray(newImages) && newImages.length > 0) {
+            console.log(`🖼️ Creating images for new product:`, {
+                productId: newProduct[0]?.id,
+                imagesCount: newImages.length,
+                images: newImages
+            });
+            try {
+                const imageInserts = newImages.map((img, index) => {
+                    const imageUrl = img.url || img.imageUrl;
+                    const pid = newProduct[0]?.id;
+                    console.log(`🖼️ Processing image ${index}:`, { url: imageUrl, altText: img.altText, productId: pid });
+                    return {
+                        productId: pid,
+                        imageUrl: imageUrl,
+                        altText: img.altText || `${name} - Image ${index + 1}`,
+                        isPrimary: index === 0,
+                        sortOrder: index,
+                    };
+                });
+                console.log('🖼️ About to insert images:', imageInserts);
+                const insertResult = await db_1.db.insert(schema_1.productImages).values(imageInserts).returning();
+                console.log(`✅ Successfully inserted ${Array.isArray(insertResult) ? insertResult.length : 0} images for product:`, insertResult);
+            }
+            catch (imageError) {
+                console.error('❌ Error inserting product images:', imageError);
+                console.error('❌ Error details:', {
+                    message: imageError instanceof Error ? imageError.message : String(imageError) || 'Unknown error',
+                    stack: imageError instanceof Error ? imageError.stack : 'No stack trace',
+                    code: imageError?.code || 'No error code'
+                });
+            }
+        }
+        else {
+            console.log('📝 No images provided for new product');
         }
         if (categoryIds && categoryIds.length > 0) {
-            await db_1.db.insert(productCategories).values(categoryIds.map((categoryId) => ({
+            await db_1.db.insert(schema_1.productCategories).values(categoryIds.map((categoryId) => ({
                 productId: newProduct[0].id,
                 categoryId
             })));
@@ -489,7 +499,11 @@ router.post('/', auth_1.requireAuth, auth_1.requireAdmin, validation_1.productVa
 router.put('/:id', auth_1.requireAuth, auth_1.requireAdmin, validation_1.idParamValidation, validation_1.productValidation, validation_1.handleValidationErrors, async (req, res) => {
     try {
         const productId = parseInt(req.params.id);
-        const { productImages: newImages, categoryIds, tireWidth, aspectRatio, rimDiameter, size: providedSize, price, comparePrice, ...otherData } = req.body;
+        console.log('🔄 Updating product with data:', JSON.stringify(req.body, null, 2));
+        console.log('🖼️ Raw images data for update:', { productImages: req.body.productImages, images: req.body.images });
+        console.log('🟢 Received images:', req.body.images);
+        const { productImages: productImagesData, images, categoryIds, tireWidth, aspectRatio, rimDiameter, size: providedSize, price, comparePrice, ...otherData } = req.body;
+        const newImages = productImagesData || images;
         let finalSize = providedSize;
         if (tireWidth && aspectRatio && rimDiameter) {
             finalSize = `${tireWidth}/${aspectRatio}R${rimDiameter}`;
@@ -512,32 +526,100 @@ router.put('/:id', auth_1.requireAuth, auth_1.requireAdmin, validation_1.idParam
             return res.status(404).json({ error: 'Product not found' });
         }
         if (newImages && Array.isArray(newImages)) {
-            await db_1.db.delete(schema_1.productImages).where((0, drizzle_orm_1.eq)(schema_1.productImages.productId, productId));
-            if (newImages.length > 0) {
-                const imageInserts = newImages.map((img, index) => ({
-                    productId: productId,
-                    imageUrl: img.url || img.imageUrl,
-                    altText: img.altText || `${result[0].name} - Image ${index + 1}`,
-                    isPrimary: index === 0,
-                    sortOrder: index,
-                }));
-                await db_1.db.insert(schema_1.productImages).values(imageInserts);
+            console.log(`🖼️ Updating images for product ${productId}:`, newImages.length, 'images');
+            console.log('🖼️ Image data:', newImages);
+            try {
+                await db_1.db.delete(schema_1.productImages).where((0, drizzle_orm_1.eq)(schema_1.productImages.productId, productId));
+                console.log(`🗑️ Deleted existing images for product ${productId}`);
+                if (newImages.length > 0) {
+                    const imageInserts = newImages.map((img, index) => {
+                        const imageUrl = img.url || img.imageUrl;
+                        const fallbackName = req.body.name || `Product ${productId}`;
+                        const insertObj = {
+                            productId: productId,
+                            imageUrl: imageUrl,
+                            altText: img.altText || `${fallbackName} - Image ${index + 1}`,
+                            isPrimary: index === 0,
+                            sortOrder: index,
+                        };
+                        console.log(`🖼️ Processing image ${index}:`, insertObj);
+                        return insertObj;
+                    });
+                    const validImageInserts = imageInserts.filter(img => img.productId && img.imageUrl);
+                    if (validImageInserts.length !== imageInserts.length) {
+                        console.error('❌ Some imageInserts are invalid:', imageInserts);
+                    }
+                    try {
+                        console.log('🟡 Attempting to insert images for productId:', productId);
+                        console.log('🟡 validImageInserts:', validImageInserts);
+                        const insertResult = await db_1.db.insert(schema_1.productImages).values(validImageInserts).returning();
+                        console.log('🟢 Insert result:', insertResult, '| type:', Array.isArray(insertResult) ? 'array' : typeof insertResult);
+                        if (!insertResult || (Array.isArray(insertResult) && insertResult.length === 0)) {
+                            console.error('❌ No images inserted for product', productId);
+                        }
+                        else if (Array.isArray(insertResult)) {
+                            console.log(`✅ Inserted ${insertResult.length} new images for product ${productId}`);
+                        }
+                        else {
+                            console.log('✅ Inserted images, but insertResult is not an array:', insertResult);
+                        }
+                    }
+                    catch (insertErr) {
+                        console.error('❌ DB insert error for product images:', insertErr);
+                    }
+                }
+            }
+            catch (imageError) {
+                console.error('❌ Error updating product images:', imageError);
+                if (imageError && typeof imageError === 'object') {
+                    const errObj = imageError;
+                    console.error('❌ Error details:', {
+                        message: errObj.message || 'Unknown error',
+                        stack: errObj.stack || 'No stack trace',
+                        code: errObj.code || 'No error code'
+                    });
+                }
+                else {
+                    console.error('❌ Error details: Unknown error type');
+                }
             }
         }
+        else {
+            console.log('📝 No images provided for product update');
+        }
         if (categoryIds && Array.isArray(categoryIds)) {
-            await db_1.db.delete(productCategories).where((0, drizzle_orm_1.eq)(productCategories.productId, productId));
+            await db_1.db.delete(schema_1.productCategories).where((0, drizzle_orm_1.eq)(schema_1.productCategories.productId, productId));
             if (categoryIds.length > 0) {
-                await db_1.db.insert(productCategories).values(categoryIds.map((categoryId) => ({
+                await db_1.db.insert(schema_1.productCategories).values(categoryIds.map((categoryId) => ({
                     productId,
-                    categoryId
+                    categoryId: Number(categoryId)
                 })));
             }
         }
         res.json(result[0]);
     }
     catch (error) {
-        console.error('Error updating product:', error);
-        res.status(500).json({ error: 'Failed to update product' });
+        console.error('❌ Error updating product:', error);
+        console.error('❌ Error details:', {
+            message: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : 'No stack trace',
+            productId: req.params.id,
+            bodyKeys: Object.keys(req.body)
+        });
+        if (error instanceof Error) {
+            if (error.message.includes('unique')) {
+                res.status(400).json({ error: 'SKU already exists' });
+            }
+            else if (error.message.includes('foreign key')) {
+                res.status(400).json({ error: 'Invalid category or product reference' });
+            }
+            else {
+                res.status(500).json({ error: 'Failed to update product', details: error.message });
+            }
+        }
+        else {
+            res.status(500).json({ error: 'Failed to update product' });
+        }
     }
 });
 router.delete('/:id', auth_1.requireAuth, auth_1.requireAdmin, validation_1.idParamValidation, validation_1.handleValidationErrors, async (req, res) => {

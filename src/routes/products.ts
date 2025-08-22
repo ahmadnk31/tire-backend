@@ -6,8 +6,7 @@
 import express from 'express';
 import { eq, and, like, gte, lte, desc, asc, or, count, SQL, inArray } from 'drizzle-orm';
 import { db } from '../db';
-import { products, productImages } from '../db/schema';
-const { productCategories, categories } = require('../db/schema');
+import { products, productImages, productCategories, categories } from '../db/schema';
 import Fuse from 'fuse.js';
 
 // Import security middleware
@@ -246,14 +245,29 @@ router.get('/', advancedSearchValidation, handleValidationErrors, async (req: ex
 
     // Build where conditions for all supported filters
     const whereConditions: SQL[] = [];
+    
+    // Handle multiple brand values
     if (brand && brand !== 'all') {
-      whereConditions.push(eq(products.brand, brand as string));
+      const brands = Array.isArray(brand) ? brand : [brand];
+      if (brands.length > 0) {
+        whereConditions.push(inArray(products.brand, brands as string[]));
+      }
     }
+    
+    // Handle multiple model values
     if (model && model !== 'all') {
-      whereConditions.push(eq(products.model, model as string));
+      const models = Array.isArray(model) ? model : [model];
+      if (models.length > 0) {
+        whereConditions.push(inArray(products.model, models as string[]));
+      }
     }
+    
+    // Handle multiple size values
     if (size && size !== 'all') {
-      whereConditions.push(eq(products.size, size as string));
+      const sizes = Array.isArray(size) ? size : [size];
+      if (sizes.length > 0) {
+        whereConditions.push(inArray(products.size, sizes as string[]));
+      }
     }
     if (status && status !== 'all') {
       whereConditions.push(eq(products.status, status as string));
@@ -271,22 +285,27 @@ router.get('/', advancedSearchValidation, handleValidationErrors, async (req: ex
     // Category filtering - need to join with productCategories and categories
     let categoryFilterIds: number[] = [];
     if (category && category !== 'all') {
-      console.log('[DEBUG] Filtering by category:', category);
+      const categoryFilters = Array.isArray(category) ? category : [category];
+      console.log('[DEBUG] Filtering by categories:', categoryFilters);
       
-      // First, find the category ID(s) that match the category name or slug
+      // First, find the category ID(s) that match the category names or slugs
       const categoryResults = await db
         .select({ id: categories.id })
         .from(categories)
         .where(or(
-          eq(categories.name, category as string),
-          eq(categories.slug, category as string)
+          ...categoryFilters.map(catFilter => 
+            or(
+              eq(categories.name, catFilter as string),
+              eq(categories.slug, catFilter as string)
+            )
+          )
         ));
       
       categoryFilterIds = categoryResults.map(c => c.id);
       console.log('[DEBUG] Found category IDs:', categoryFilterIds);
       
       if (categoryFilterIds.length > 0) {
-        // Get product IDs that belong to these categories
+        // Get product ID(s) that belong to these categories
         const productCategoryResults = await db
           .select({ productId: productCategories.productId })
           .from(productCategories)
@@ -296,7 +315,7 @@ router.get('/', advancedSearchValidation, handleValidationErrors, async (req: ex
         console.log('[DEBUG] Products in category:', filteredProductIds);
         
         if (filteredProductIds.length > 0) {
-          whereConditions.push(inArray(products.id, filteredProductIds));
+          whereConditions.push(inArray(products.id, filteredProductIds.filter((id: number | null) => id !== null)));
         } else {
           // No products found in this category, return empty result
           whereConditions.push(eq(products.id, -1)); // This will always be false
@@ -526,6 +545,9 @@ router.get('/:id', idParamValidation, handleValidationErrors, async (req: expres
 // Create a new product (admin only)
 router.post('/', requireAuth, requireAdmin, productValidation, handleValidationErrors, async (req: express.Request, res: express.Response) => {
   try {
+    console.log('🆕 Creating new product with data:', JSON.stringify(req.body, null, 2));
+    console.log('🖼️ Images received in request:', req.body.images || req.body.productImages);
+
     const {
       name,
       brand,
@@ -554,9 +576,11 @@ router.post('/', requireAuth, requireAdmin, productValidation, handleValidationE
       seoTitle,
       seoDescription,
       // Images and categories
-      productImages: newImages = [],
+      productImages: productImagesData,
+      images,
       categoryIds = []
     } = req.body;
+
 
     // Generate SKU if not provided
     const finalSku = sku || `${brand.substring(0, 3).toUpperCase()}-${model.substring(0, 3).toUpperCase()}-${size.replace(/[\/]/g, '-')}`;
@@ -597,17 +621,49 @@ router.post('/', requireAuth, requireAdmin, productValidation, handleValidationE
       updatedAt: new Date(),
     }).returning();
 
-    // Insert product images if provided
-    if (newImages.length > 0) {
-      const imageInserts = newImages.map((img: any, index: number) => ({
-        productId: newProduct[0].id,
-        imageUrl: img.url || img.imageUrl, // Support both field names
-        altText: img.altText || `${name} - Image ${index + 1}`,
-        isPrimary: index === 0,
-        sortOrder: index,
-      }));
+    // Debug: log newProduct result
+    console.log('🟢 newProduct result:', newProduct);
+    if (!newProduct || !Array.isArray(newProduct) || !newProduct[0] || typeof newProduct[0].id === 'undefined') {
+      console.error('❌ newProduct[0].id is undefined! Cannot insert images.');
+    }
 
-      await db.insert(productImages).values(imageInserts);
+    // Handle both 'images' and 'productImages' fields for backward compatibility
+    const newImages = productImagesData || images;
+
+    // Insert product images if provided
+    if (newImages && Array.isArray(newImages) && newImages.length > 0) {
+      console.log(`🖼️ Creating images for new product:`, {
+        productId: newProduct[0]?.id,
+        imagesCount: newImages.length,
+        images: newImages
+      });
+      try {
+        const imageInserts = newImages.map((img: any, index: number) => {
+          const imageUrl = img.url || img.imageUrl; // Support both field names
+          const pid = newProduct[0]?.id;
+          console.log(`🖼️ Processing image ${index}:`, { url: imageUrl, altText: img.altText, productId: pid });
+          return {
+            productId: pid,
+            imageUrl: imageUrl,
+            altText: img.altText || `${name} - Image ${index + 1}`,
+            isPrimary: index === 0,
+            sortOrder: index,
+          };
+        });
+        console.log('🖼️ About to insert images:', imageInserts);
+        const insertResult = await db.insert(productImages).values(imageInserts).returning();
+        console.log(`✅ Successfully inserted ${Array.isArray(insertResult) ? insertResult.length : 0} images for product:`, insertResult);
+      } catch (imageError: any) {
+        console.error('❌ Error inserting product images:', imageError);
+        console.error('❌ Error details:', {
+          message: imageError instanceof Error ? imageError.message : String(imageError) || 'Unknown error',
+          stack: imageError instanceof Error ? imageError.stack : 'No stack trace',
+          code: (imageError as any)?.code || 'No error code'
+        });
+        // Don't fail the entire creation if image insertion fails
+      }
+    } else {
+      console.log('📝 No images provided for new product');
     }
 
     // Insert product categories if provided
@@ -636,8 +692,12 @@ router.post('/', requireAuth, requireAdmin, productValidation, handleValidationE
 router.put('/:id', requireAuth, requireAdmin, idParamValidation, productValidation, handleValidationErrors, async (req: express.Request, res: express.Response) => {
   try {
     const productId = parseInt(req.params.id);
+    console.log('🔄 Updating product with data:', JSON.stringify(req.body, null, 2));
+    console.log('🖼️ Raw images data for update:', { productImages: req.body.productImages, images: req.body.images });
+    console.log('🟢 Received images:', req.body.images);
     const {
-      productImages: newImages,
+      productImages: productImagesData,
+      images,
       categoryIds,
       tireWidth,
       aspectRatio,
@@ -647,6 +707,9 @@ router.put('/:id', requireAuth, requireAdmin, idParamValidation, productValidati
       comparePrice,
       ...otherData
     } = req.body;
+    
+    // Handle both 'images' and 'productImages' fields for backward compatibility
+    const newImages = productImagesData || images;
     
     // Auto-generate size from tire dimensions if provided
     let finalSize = providedSize;
@@ -677,21 +740,64 @@ router.put('/:id', requireAuth, requireAdmin, idParamValidation, productValidati
 
     // Update product images if provided
     if (newImages && Array.isArray(newImages)) {
-      // Delete existing images
-      await db.delete(productImages).where(eq(productImages.productId, productId));
-      
-      // Insert new images
-      if (newImages.length > 0) {
-        const imageInserts = newImages.map((img: any, index: number) => ({
-          productId: productId,
-          imageUrl: img.url || img.imageUrl, // Support both field names
-          altText: img.altText || `${result[0].name} - Image ${index + 1}`,
-          isPrimary: index === 0,
-          sortOrder: index,
-        }));
-
-        await db.insert(productImages).values(imageInserts);
+      console.log(`🖼️ Updating images for product ${productId}:`, newImages.length, 'images');
+      console.log('🖼️ Image data:', newImages);
+      try {
+        // Delete existing images
+        await db.delete(productImages).where(eq(productImages.productId, productId));
+        console.log(`🗑️ Deleted existing images for product ${productId}`);
+        // Insert new images
+        if (newImages.length > 0) {
+          const imageInserts = newImages.map((img: any, index: number) => {
+            const imageUrl = img.url || img.imageUrl; // Support both field names
+            const fallbackName = req.body.name || `Product ${productId}`;
+            const insertObj = {
+              productId: productId,
+              imageUrl: imageUrl,
+              altText: img.altText || `${fallbackName} - Image ${index + 1}`,
+              isPrimary: index === 0,
+              sortOrder: index,
+            };
+            console.log(`🖼️ Processing image ${index}:`, insertObj);
+            return insertObj;
+          });
+          // Validate all imageInserts
+          const validImageInserts = imageInserts.filter(img => img.productId && img.imageUrl);
+          if (validImageInserts.length !== imageInserts.length) {
+            console.error('❌ Some imageInserts are invalid:', imageInserts);
+          }
+          try {
+            console.log('🟡 Attempting to insert images for productId:', productId);
+            console.log('🟡 validImageInserts:', validImageInserts);
+            const insertResult = await db.insert(productImages).values(validImageInserts).returning();
+            console.log('🟢 Insert result:', insertResult, '| type:', Array.isArray(insertResult) ? 'array' : typeof insertResult);
+            if (!insertResult || (Array.isArray(insertResult) && insertResult.length === 0)) {
+              console.error('❌ No images inserted for product', productId);
+            } else if (Array.isArray(insertResult)) {
+              console.log(`✅ Inserted ${insertResult.length} new images for product ${productId}`);
+            } else {
+              console.log('✅ Inserted images, but insertResult is not an array:', insertResult);
+            }
+          } catch (insertErr) {
+            console.error('❌ DB insert error for product images:', insertErr);
+          }
+        }
+      } catch (imageError) {
+        console.error('❌ Error updating product images:', imageError);
+        if (imageError && typeof imageError === 'object') {
+          const errObj = imageError as { message?: string; stack?: string; code?: string };
+          console.error('❌ Error details:', {
+            message: errObj.message || 'Unknown error',
+            stack: errObj.stack || 'No stack trace',
+            code: errObj.code || 'No error code'
+          });
+        } else {
+          console.error('❌ Error details: Unknown error type');
+        }
+        // Don't fail the entire update if image update fails
       }
+    } else {
+      console.log('📝 No images provided for product update');
     }
 
     // Update product categories if provided
@@ -702,9 +808,9 @@ router.put('/:id', requireAuth, requireAdmin, idParamValidation, productValidati
       // Insert new product-category relationships
       if (categoryIds.length > 0) {
         await db.insert(productCategories).values(
-          categoryIds.map((categoryId: string) => ({
+          categoryIds.map((categoryId: string | number) => ({
             productId,
-            categoryId
+            categoryId: Number(categoryId)
           }))
         );
       }
@@ -712,8 +818,26 @@ router.put('/:id', requireAuth, requireAdmin, idParamValidation, productValidati
     
     res.json(result[0]);
   } catch (error) {
-    console.error('Error updating product:', error);
-    res.status(500).json({ error: 'Failed to update product' });
+    console.error('❌ Error updating product:', error);
+    console.error('❌ Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+      productId: req.params.id,
+      bodyKeys: Object.keys(req.body)
+    });
+    
+    // Provide more specific error messages
+    if (error instanceof Error) {
+      if (error.message.includes('unique')) {
+        res.status(400).json({ error: 'SKU already exists' });
+      } else if (error.message.includes('foreign key')) {
+        res.status(400).json({ error: 'Invalid category or product reference' });
+      } else {
+        res.status(500).json({ error: 'Failed to update product', details: error.message });
+      }
+    } else {
+      res.status(500).json({ error: 'Failed to update product' });
+    }
   }
 });
 

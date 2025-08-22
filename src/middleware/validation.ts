@@ -107,8 +107,8 @@ export const productValidation = [
     .withMessage('Season type must be summer, winter, or all-season'),
   body('tireType')
     .optional()
-    .isIn(['performance', 'touring', 'off-road', 'economy', 'luxury'])
-    .withMessage('Tire type must be performance, touring, off-road, economy, or luxury'),
+    .isIn(['passenger', 'suv', 'truck', 'performance', 'commercial', 'touring', 'off-road', 'economy', 'luxury'])
+    .withMessage('Tire type must be passenger, suv, truck, performance, commercial, touring, off-road, economy, or luxury'),
   
   body('status')
     .optional()
@@ -186,8 +186,8 @@ export const paginationValidation = [
     .withMessage('Page must be a positive integer'),
   query('limit')
     .optional()
-    .isInt({ min: 1, max: 100 })
-    .withMessage('Limit must be between 1 and 100'),
+    .isInt({ min: 1, max: 1000 })
+    .withMessage('Limit must be between 1 and 1000'),
   query('sortBy')
     .optional()
     .isIn(['name', 'price', 'createdAt', 'updatedAt'])

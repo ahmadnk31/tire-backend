@@ -1,4 +1,5 @@
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import { getEmailTranslation, replaceTemplateVariables } from './emailTranslations';
 
 const ses = new SESClient({
   region: process.env.MY_AWS_REGION || 'eu-central-1',
@@ -124,26 +125,28 @@ const getEmailTemplate = (content: string, title: string) => `
 `;
 
 // Contact form confirmation email template
-const getContactConfirmationTemplate = (name: string, inquiryType: string, subject: string, email: string) => {
+const getContactConfirmationTemplate = (name: string, inquiryType: string, subject: string, email: string, language: string = 'en') => {
+  const translations = getEmailTranslation(language);
+  
   const inquiryTypeMap: { [key: string]: string } = {
-    general: 'General Question',
-    quote: 'Request Quote',
-    appointment: 'Schedule Appointment',
-    warranty: 'Warranty Claim',
-    complaint: 'Complaint',
-    support: 'Technical Support'
+    general: language === 'nl' ? 'Algemene Vraag' : 'General Question',
+    quote: language === 'nl' ? 'Offerte Aanvragen' : 'Request Quote',
+    appointment: language === 'nl' ? 'Afspraak Inplannen' : 'Schedule Appointment',
+    warranty: language === 'nl' ? 'Garantieclaim' : 'Warranty Claim',
+    complaint: language === 'nl' ? 'Klacht' : 'Complaint',
+    support: language === 'nl' ? 'Technische Ondersteuning' : 'Technical Support'
   };
 
   const unsubscribeUrl = `${process.env.FRONTEND_URL || 'https://tire-frontend.vercel.app'}/unsubscribe?email=${encodeURIComponent(email)}`;
 
   const content = `
-    <h2>Thank you for contacting us, ${name}!</h2>
-    <p>We have received your message and will get back to you within 24 hours.</p>
+    <h2>${replaceTemplateVariables(translations.contactConfirmation.greeting, { name })}</h2>
+    <p>${translations.contactConfirmation.description}</p>
     
     <div class="highlight">
-        <h3>Your Inquiry Details:</h3>
-        <p><strong>Type:</strong> ${inquiryTypeMap[inquiryType] || inquiryType}</p>
-        <p><strong>Subject:</strong> ${subject}</p>
+        <h3>${translations.contactConfirmation.inquiryType}:</h3>
+        <p><strong>${translations.contactConfirmation.inquiryType}:</strong> ${inquiryTypeMap[inquiryType] || inquiryType}</p>
+        <p><strong>${translations.contactConfirmation.subjectLabel}:</strong> ${subject}</p>
         <p><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
     </div>
 
@@ -170,7 +173,7 @@ const getContactConfirmationTemplate = (name: string, inquiryType: string, subje
     </div>
   `;
 
-  return getEmailTemplate(content, `Message Received - ${subject}`);
+  return getEmailTemplate(content, replaceTemplateVariables(translations.contactConfirmation.subject, { subject }));
 };
 
 // Admin notification email template
@@ -262,51 +265,89 @@ const getNewsletterWelcomeTemplate = (email: string, name?: string) => {
 };
 
 // Password reset email template
-export async function sendVerificationEmail(email: string, token: string) {
+export async function sendVerificationEmail(email: string, token: string, language: string = 'en') {
+  console.log('Sending verification email to:', email, 'in language:', language);
+  console.log('Environment variables check:', {
+    FRONTEND_URL: process.env.FRONTEND_URL,
+    SES_FROM_EMAIL: process.env.SES_FROM_EMAIL,
+    MY_AWS_REGION: process.env.MY_AWS_REGION,
+    hasAccessKey: !!process.env.MY_AWS_ACCESS_KEY_ID,
+    hasSecretKey: !!process.env.MY_AWS_SECRET_ACCESS_KEY
+  });
+  
+  if (!process.env.FRONTEND_URL) {
+    throw new Error('FRONTEND_URL environment variable is not set');
+  }
+  
+  if (!process.env.SES_FROM_EMAIL) {
+    throw new Error('SES_FROM_EMAIL environment variable is not set');
+  }
+  
+  const translations = getEmailTranslation(language);
   const link = `${process.env.FRONTEND_URL}/verify?email=${encodeURIComponent(email)}&token=${token}`;
   
   const content = `
-    <h2>Verify Your Email Address</h2>
-    <p>Thank you for creating an account with Ariana Bandencentraal!</p>
-    <p>To complete your registration, please verify your email address by clicking the button below:</p>
+    <h2>${translations.verification.title}</h2>
+    <p>${translations.verification.greeting}</p>
+    <p>${translations.verification.description}</p>
     
     <div style="text-align: center; margin: 30px 0;">
-        <a href="${link}" class="button">Verify Email Address</a>
+        <a href="${link}" class="button">${translations.verification.buttonText}</a>
     </div>
 
     <div class="highlight">
-        <p><strong>⏰ This link will expire in 24 hours for security reasons.</strong></p>
-        <p>If you didn't create an account, please ignore this email.</p>
+        <p><strong>${translations.verification.expiryWarning}</strong></p>
+        <p>${translations.verification.ignoreMessage}</p>
     </div>
 
-    <p>If the button doesn't work, copy and paste this link into your browser:</p>
+    <p>${translations.verification.manualLinkText}</p>
     <p style="word-break: break-all; background: #f8fafc; padding: 10px; border-radius: 4px;">${link}</p>
   `;
 
   const params = {
-    Source: process.env.SES_FROM_EMAIL!,
+    Source: process.env.SES_FROM_EMAIL,
     Destination: { ToAddresses: [email] },
     Message: {
-      Subject: { Data: 'Verify your email - Ariana Bandencentraal' },
+      Subject: { Data: translations.verification.subject },
       Body: {
-        Html: { Data: getEmailTemplate(content, 'Verify Your Email') },
+        Html: { Data: getEmailTemplate(content, translations.verification.title) },
       },
     },
   };
   
-  const command = new SendEmailCommand(params);
-  await ses.send(command);
+  console.log('SES parameters:', {
+    Source: params.Source,
+    Destination: params.Destination,
+    Subject: params.Message.Subject.Data,
+    Language: language
+  });
+  
+  try {
+    const command = new SendEmailCommand(params);
+    const result = await ses.send(command);
+    console.log('Email sent successfully:', result.MessageId);
+    return result;
+  } catch (error: any) {
+    console.error('Failed to send email:', error);
+    console.error('Error details:', {
+      code: error.Code,
+      message: error.Message,
+      requestId: error.$metadata?.requestId
+    });
+    throw error;
+  }
 }
 
 // Send contact form confirmation email
-export async function sendContactConfirmationEmail(email: string, name: string, inquiryType: string, subject: string) {
+export async function sendContactConfirmationEmail(email: string, name: string, inquiryType: string, subject: string, language: string = 'en') {
+  const translations = getEmailTranslation(language);
   const params = {
     Source: process.env.SES_FROM_EMAIL!,
     Destination: { ToAddresses: [email] },
     Message: {
-      Subject: { Data: `Message Received - ${subject}` },
+      Subject: { Data: replaceTemplateVariables(translations.contactConfirmation.subject, { subject }) },
       Body: {
-        Html: { Data: getContactConfirmationTemplate(name, inquiryType, subject, email) },
+        Html: { Data: getContactConfirmationTemplate(name, inquiryType, subject, email, language) },
       },
     },
   };
@@ -358,24 +399,25 @@ export async function sendNewsletterWelcomeEmail(email: string, name?: string) {
 }
 
 // Send password reset email
-export async function sendPasswordResetEmail(email: string, token: string) {
+export async function sendPasswordResetEmail(email: string, token: string, language: string = 'en') {
+  const translations = getEmailTranslation(language);
   const link = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
   
   const content = `
-    <h2>Password Reset Request</h2>
-    <p>We received a request to reset your password for your Ariana Bandencentraal account.</p>
-    <p>Click the button below to create a new password:</p>
+    <h2>${translations.passwordReset.title}</h2>
+    <p>${translations.passwordReset.greeting}</p>
+    <p>${translations.passwordReset.description}</p>
     
     <div style="text-align: center; margin: 30px 0;">
-        <a href="${link}" class="button">Reset Password</a>
+        <a href="${link}" class="button">${translations.passwordReset.buttonText}</a>
     </div>
 
     <div class="highlight">
-        <p><strong>⏰ This link will expire in 1 hour for security reasons.</strong></p>
-        <p>If you didn't request a password reset, please ignore this email.</p>
+        <p><strong>${translations.passwordReset.expiryWarning}</strong></p>
+        <p>${translations.passwordReset.ignoreMessage}</p>
     </div>
 
-    <p>If the button doesn't work, copy and paste this link into your browser:</p>
+    <p>${translations.passwordReset.manualLinkText}</p>
     <p style="word-break: break-all; background: #f8fafc; padding: 10px; border-radius: 4px;">${link}</p>
 
     <div class="contact-info">
@@ -392,9 +434,9 @@ export async function sendPasswordResetEmail(email: string, token: string) {
     Source: process.env.SES_FROM_EMAIL!,
     Destination: { ToAddresses: [email] },
     Message: {
-      Subject: { Data: 'Password Reset - Ariana Bandencentraal' },
+      Subject: { Data: translations.passwordReset.subject },
       Body: {
-        Html: { Data: getEmailTemplate(content, 'Password Reset') },
+        Html: { Data: getEmailTemplate(content, translations.passwordReset.title) },
       },
     },
   };

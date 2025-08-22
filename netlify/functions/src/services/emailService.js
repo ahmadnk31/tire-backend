@@ -236,6 +236,20 @@ const getNewsletterWelcomeTemplate = (email, name) => {
     return getEmailTemplate(content, 'Welcome to Ariana Bandencentraal Newsletter! 🚗');
 };
 async function sendVerificationEmail(email, token) {
+    console.log('Sending verification email to:', email);
+    console.log('Environment variables check:', {
+        FRONTEND_URL: process.env.FRONTEND_URL,
+        SES_FROM_EMAIL: process.env.SES_FROM_EMAIL,
+        MY_AWS_REGION: process.env.MY_AWS_REGION,
+        hasAccessKey: !!process.env.MY_AWS_ACCESS_KEY_ID,
+        hasSecretKey: !!process.env.MY_AWS_SECRET_ACCESS_KEY
+    });
+    if (!process.env.FRONTEND_URL) {
+        throw new Error('FRONTEND_URL environment variable is not set');
+    }
+    if (!process.env.SES_FROM_EMAIL) {
+        throw new Error('SES_FROM_EMAIL environment variable is not set');
+    }
     const link = `${process.env.FRONTEND_URL}/verify?email=${encodeURIComponent(email)}&token=${token}`;
     const content = `
     <h2>Verify Your Email Address</h2>
@@ -264,8 +278,26 @@ async function sendVerificationEmail(email, token) {
             },
         },
     };
-    const command = new client_ses_1.SendEmailCommand(params);
-    await ses.send(command);
+    console.log('SES parameters:', {
+        Source: params.Source,
+        Destination: params.Destination,
+        Subject: params.Message.Subject.Data
+    });
+    try {
+        const command = new client_ses_1.SendEmailCommand(params);
+        const result = await ses.send(command);
+        console.log('Email sent successfully:', result.MessageId);
+        return result;
+    }
+    catch (error) {
+        console.error('Failed to send email:', error);
+        console.error('Error details:', {
+            code: error.Code,
+            message: error.Message,
+            requestId: error.$metadata?.requestId
+        });
+        throw error;
+    }
 }
 async function sendContactConfirmationEmail(email, name, inquiryType, subject) {
     const params = {

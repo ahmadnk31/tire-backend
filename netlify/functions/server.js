@@ -13,6 +13,7 @@ dotenv_1.default.config();
 const app = (0, express_1.default)();
 exports.app = app;
 const PORT = process.env.PORT || 3001;
+app.set('query parser', 'extended');
 const rateLimiting_1 = require("./src/middleware/rateLimiting");
 const security_1 = require("./src/utils/security");
 const validation_1 = require("./src/middleware/validation");

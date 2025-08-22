@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 import { db } from '../db';
 import { users } from '../db/schema';
 import { eq } from 'drizzle-orm';
-import { sendVerificationEmail } from '../services/emailService';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../services/emailService';
 import { requireAuth, requireAdmin } from '../middleware/auth';
 import { 
   checkSecurityBlock, 
@@ -26,7 +26,7 @@ const router = express.Router();
 
 // Resend verification email
 router.post('/resend-verification', async (req: Request, res: Response) => {
-  const { email } = req.body;
+  const { email, language } = req.body;
   if (!email) return res.status(400).json({ error: 'Missing email' });
   const user = await db.query.users.findFirst({ where: eq(users.email, email) });
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -40,21 +40,91 @@ router.post('/resend-verification', async (req: Request, res: Response) => {
 });
 // Register
 router.post('/register', async (req: Request, res: Response) => {
-  const { name, email, password, role } = req.body;
-  if (!name || !email || !password) return res.status(400).json({ error: 'Missing fields' });
-  const hashed = await bcrypt.hash(password, 10);
-  const token = Math.random().toString(36).substring(2);
+  const { name, email, password, role, language } = req.body;
+  
+  console.log('Registration attempt:', { name, email, role: role || 'user' });
+  
+  if (!name || !email || !password) {
+    console.log('Missing fields in registration');
+    return res.status(400).json({ error: 'Missing fields' });
+  }
+  
   try {
-    await db.insert(users).values({ name, email, password: hashed, role: role || 'user', verificationToken: token });
-    await sendVerificationEmail(email, token);
+    // Hash password
+    const hashed = await bcrypt.hash(password, 10);
+    const token = Math.random().toString(36).substring(2);
+    
+    console.log('Creating user in database...');
+    
+    // Insert user into database
+    await db.insert(users).values({ 
+      name, 
+      email, 
+      password: hashed, 
+      role: role || 'user', 
+      verificationToken: token 
+    });
+    
+    console.log('User created successfully, sending verification email...');
+    
+    // Send verification email
+    try {
+      await sendVerificationEmail(email, token, language || 'en');
+      console.log('Verification email sent successfully');
+    } catch (emailError: any) {
+      console.error('Failed to send verification email:', emailError);
+      // Still return success but with a warning
+      return res.json({ 
+        success: true, 
+        message: 'Registration successful. Please check your email to verify your account.',
+        warning: 'Email verification may be delayed. Please check your spam folder or contact support if you don\'t receive it.'
+      });
+    }
+    
     res.json({ success: true, message: 'Registration successful. Please check your email to verify your account.' });
   } catch (err: any) {
+    console.error('Registration failed:', err);
+    
     // Handle duplicate email error
     if (err?.code === '23505' && String(err?.detail).includes('users_email_unique')) {
       return res.status(409).json({ error: 'Email already registered. Please login or use a different email.' });
     }
-    console.error('Registration failed:', err);
-    res.status(500).json({ error: 'Registration failed', details: err?.message || err });
+    
+    // Handle other database errors
+    if (err?.code) {
+      console.error('Database error code:', err.code);
+      return res.status(500).json({ error: 'Registration failed', details: 'Database error occurred' });
+    }
+    
+    res.status(500).json({ error: 'Registration failed', details: err?.message || 'Unknown error occurred' });
+  }
+});
+
+// Test email service
+router.get('/test-email', async (req: Request, res: Response) => {
+  try {
+    console.log('Testing email service...');
+    console.log('Environment variables:', {
+      FRONTEND_URL: process.env.FRONTEND_URL,
+      SES_FROM_EMAIL: process.env.SES_FROM_EMAIL,
+      MY_AWS_REGION: process.env.MY_AWS_REGION,
+      hasAccessKey: !!process.env.MY_AWS_ACCESS_KEY_ID,
+      hasSecretKey: !!process.env.MY_AWS_SECRET_ACCESS_KEY
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Email service test endpoint',
+      config: {
+        frontendUrl: process.env.FRONTEND_URL,
+        sesFromEmail: process.env.SES_FROM_EMAIL,
+        awsRegion: process.env.MY_AWS_REGION,
+        hasCredentials: !!(process.env.MY_AWS_ACCESS_KEY_ID && process.env.MY_AWS_SECRET_ACCESS_KEY)
+      }
+    });
+  } catch (error: any) {
+    console.error('Email service test failed:', error);
+    res.status(500).json({ error: 'Email service test failed', details: error.message });
   }
 });
 
@@ -76,7 +146,7 @@ router.post('/login',
   checkSecurityBlock,
   checkAttemptWarning,
   async (req: Request, res: Response) => {
-    const { email, password, resendVerification } = req.body;
+    const { email, password, resendVerification, language } = req.body;
     
     if (!email || !password) {
       return res.status(400).json({ error: 'Missing email or password' });
@@ -104,7 +174,7 @@ router.post('/login',
           if (!user.verificationToken) {
             await db.update(users).set({ verificationToken: token }).where(eq(users.email, email));
           }
-          await sendVerificationEmail(email, token);
+          await sendVerificationEmail(email, token, language || 'en');
           return res.status(200).json({ 
             error: 'Email not verified. Verification email resent.', 
             unverified: true, 
@@ -170,14 +240,14 @@ router.post('/login',
 
 // Forgot Password
 router.post('/forgot-password', async (req: Request, res: Response) => {
-  const { email } = req.body;
+  const { email, language } = req.body;
   if (!email) return res.status(400).json({ error: 'Missing email' });
   const user = await db.query.users.findFirst({ where: eq(users.email, email) });
   if (!user) return res.status(404).json({ error: 'User not found' });
   const resetToken = Math.random().toString(36).substring(2);
   await db.update(users).set({ resetToken }).where(eq(users.email, email));
   // TODO: Send resetToken via email (reuse sendVerificationEmail or create sendResetEmail)
-  await sendVerificationEmail(email, resetToken); // Replace with sendResetEmail for real use
+  await sendPasswordResetEmail(email, resetToken, language || 'en'); // Replace with sendResetEmail for real use
   res.json({ success: true });
 });
 

@@ -10,6 +10,9 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Configure Express to handle multiple query parameters with the same name
+app.set('query parser', 'extended');
+
 // Import security middleware
 import { 
   generalRateLimit, 

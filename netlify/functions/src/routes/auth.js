@@ -31,21 +31,73 @@ router.post('/resend-verification', async (req, res) => {
 });
 router.post('/register', async (req, res) => {
     const { name, email, password, role } = req.body;
-    if (!name || !email || !password)
+    console.log('Registration attempt:', { name, email, role: role || 'user' });
+    if (!name || !email || !password) {
+        console.log('Missing fields in registration');
         return res.status(400).json({ error: 'Missing fields' });
-    const hashed = await bcryptjs_1.default.hash(password, 10);
-    const token = Math.random().toString(36).substring(2);
+    }
     try {
-        await db_1.db.insert(schema_1.users).values({ name, email, password: hashed, role: role || 'user', verificationToken: token });
-        await (0, emailService_1.sendVerificationEmail)(email, token);
+        const hashed = await bcryptjs_1.default.hash(password, 10);
+        const token = Math.random().toString(36).substring(2);
+        console.log('Creating user in database...');
+        await db_1.db.insert(schema_1.users).values({
+            name,
+            email,
+            password: hashed,
+            role: role || 'user',
+            verificationToken: token
+        });
+        console.log('User created successfully, sending verification email...');
+        try {
+            await (0, emailService_1.sendVerificationEmail)(email, token);
+            console.log('Verification email sent successfully');
+        }
+        catch (emailError) {
+            console.error('Failed to send verification email:', emailError);
+            return res.json({
+                success: true,
+                message: 'Registration successful. Please check your email to verify your account.',
+                warning: 'Email verification may be delayed. Please check your spam folder or contact support if you don\'t receive it.'
+            });
+        }
         res.json({ success: true, message: 'Registration successful. Please check your email to verify your account.' });
     }
     catch (err) {
+        console.error('Registration failed:', err);
         if (err?.code === '23505' && String(err?.detail).includes('users_email_unique')) {
             return res.status(409).json({ error: 'Email already registered. Please login or use a different email.' });
         }
-        console.error('Registration failed:', err);
-        res.status(500).json({ error: 'Registration failed', details: err?.message || err });
+        if (err?.code) {
+            console.error('Database error code:', err.code);
+            return res.status(500).json({ error: 'Registration failed', details: 'Database error occurred' });
+        }
+        res.status(500).json({ error: 'Registration failed', details: err?.message || 'Unknown error occurred' });
+    }
+});
+router.get('/test-email', async (req, res) => {
+    try {
+        console.log('Testing email service...');
+        console.log('Environment variables:', {
+            FRONTEND_URL: process.env.FRONTEND_URL,
+            SES_FROM_EMAIL: process.env.SES_FROM_EMAIL,
+            MY_AWS_REGION: process.env.MY_AWS_REGION,
+            hasAccessKey: !!process.env.MY_AWS_ACCESS_KEY_ID,
+            hasSecretKey: !!process.env.MY_AWS_SECRET_ACCESS_KEY
+        });
+        res.json({
+            success: true,
+            message: 'Email service test endpoint',
+            config: {
+                frontendUrl: process.env.FRONTEND_URL,
+                sesFromEmail: process.env.SES_FROM_EMAIL,
+                awsRegion: process.env.MY_AWS_REGION,
+                hasCredentials: !!(process.env.MY_AWS_ACCESS_KEY_ID && process.env.MY_AWS_SECRET_ACCESS_KEY)
+            }
+        });
+    }
+    catch (error) {
+        console.error('Email service test failed:', error);
+        res.status(500).json({ error: 'Email service test failed', details: error.message });
     }
 });
 router.get('/verify', async (req, res) => {
