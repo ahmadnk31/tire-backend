@@ -14,7 +14,7 @@ const auth_1 = require("../middleware/auth");
 const securityRateLimit_1 = require("../middleware/securityRateLimit");
 const router = express_1.default.Router();
 router.post('/resend-verification', async (req, res) => {
-    const { email } = req.body;
+    const { email, language } = req.body;
     if (!email)
         return res.status(400).json({ error: 'Missing email' });
     const user = await db_1.db.query.users.findFirst({ where: (0, drizzle_orm_1.eq)(schema_1.users.email, email) });
@@ -30,7 +30,7 @@ router.post('/resend-verification', async (req, res) => {
     res.json({ success: true, message: 'Verification email resent.' });
 });
 router.post('/register', async (req, res) => {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, language } = req.body;
     console.log('Registration attempt:', { name, email, role: role || 'user' });
     if (!name || !email || !password) {
         console.log('Missing fields in registration');
@@ -49,7 +49,7 @@ router.post('/register', async (req, res) => {
         });
         console.log('User created successfully, sending verification email...');
         try {
-            await (0, emailService_1.sendVerificationEmail)(email, token);
+            await (0, emailService_1.sendVerificationEmail)(email, token, language || 'en');
             console.log('Verification email sent successfully');
         }
         catch (emailError) {
@@ -112,7 +112,7 @@ router.get('/verify', async (req, res) => {
     res.json({ success: true });
 });
 router.post('/login', securityRateLimit_1.enhancedLoginRateLimit, securityRateLimit_1.detectMaliciousActivity, securityRateLimit_1.checkSecurityBlock, securityRateLimit_1.checkAttemptWarning, async (req, res) => {
-    const { email, password, resendVerification } = req.body;
+    const { email, password, resendVerification, language } = req.body;
     if (!email || !password) {
         return res.status(400).json({ error: 'Missing email or password' });
     }
@@ -133,7 +133,7 @@ router.post('/login', securityRateLimit_1.enhancedLoginRateLimit, securityRateLi
                 if (!user.verificationToken) {
                     await db_1.db.update(schema_1.users).set({ verificationToken: token }).where((0, drizzle_orm_1.eq)(schema_1.users.email, email));
                 }
-                await (0, emailService_1.sendVerificationEmail)(email, token);
+                await (0, emailService_1.sendVerificationEmail)(email, token, language || 'en');
                 return res.status(200).json({
                     error: 'Email not verified. Verification email resent.',
                     unverified: true,
@@ -182,7 +182,7 @@ router.post('/login', securityRateLimit_1.enhancedLoginRateLimit, securityRateLi
     }
 });
 router.post('/forgot-password', async (req, res) => {
-    const { email } = req.body;
+    const { email, language } = req.body;
     if (!email)
         return res.status(400).json({ error: 'Missing email' });
     const user = await db_1.db.query.users.findFirst({ where: (0, drizzle_orm_1.eq)(schema_1.users.email, email) });
@@ -190,7 +190,7 @@ router.post('/forgot-password', async (req, res) => {
         return res.status(404).json({ error: 'User not found' });
     const resetToken = Math.random().toString(36).substring(2);
     await db_1.db.update(schema_1.users).set({ resetToken }).where((0, drizzle_orm_1.eq)(schema_1.users.email, email));
-    await (0, emailService_1.sendVerificationEmail)(email, resetToken);
+    await (0, emailService_1.sendPasswordResetEmail)(email, resetToken, language || 'en');
     res.json({ success: true });
 });
 router.post('/reset-password', async (req, res) => {
