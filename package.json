@@ -4,7 +4,9 @@
   "description": "Backend API for Tire Store",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc && cp -r dist/src/* netlify/functions/src/ && cp dist/server.js netlify/functions/",
+    "prebuild": "mkdir -p dist netlify/functions/src",
+    "build": "npx tsc && cp -r dist/src/* netlify/functions/src/ && cp dist/server.js netlify/functions/",
+    "build:netlify": "npm install --include=dev && npx tsc && cp -r dist/src/* netlify/functions/src/ && cp dist/server.js netlify/functions/",
     "start": "node dist/server.js",
     "dev": "nodemon --exec ts-node server.ts",
     "dev:watch": "nodemon --watch src --ext ts --exec ts-node server.ts",
@@ -47,6 +49,7 @@
     "pg": "^8.16.3",
     "serverless-http": "^3.2.0",
     "stripe": "^18.4.0",
+    "typescript": "^5.9.2",
     "uuid": "^9.0.1",
     "zod": "^4.0.17"
   },
@@ -64,7 +67,6 @@
     "@types/uuid": "^10.0.0",
     "drizzle-kit": "^0.31.4",
     "nodemon": "^3.1.10",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "ts-node": "^10.9.2"
   }
 }
