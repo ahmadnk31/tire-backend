@@ -24,7 +24,7 @@ class S3Service {
     // Log configuration for debugging (without sensitive data)
     console.log('🔧 S3Service Configuration:', {
       region: process.env.MY_AWS_REGION || 'us-east-1',
-      bucket: process.env.MY_AWS_S3_BUCKET_NAME || 'tire-store-images',
+      bucket: process.env.MY_AWS_S3_BUCKET_NAME || 'ariana-tire',
       hasAccessKey: !!process.env.MY_AWS_ACCESS_KEY_ID,
       hasSecretKey: !!process.env.MY_AWS_SECRET_ACCESS_KEY,
     });
