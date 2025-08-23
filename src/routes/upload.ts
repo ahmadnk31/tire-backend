@@ -2,8 +2,21 @@ import express, { Request, Response } from 'express';
 import { upload } from '../middleware/upload';
 import S3Service from '../services/s3Service';
 
+// Add CORS headers for deployment
+const addCorsHeaders = (res: Response) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+};
+
 const router = express.Router();
 const s3Service = new S3Service();
+
+// Handle CORS preflight requests
+router.options('*', (req: Request, res: Response) => {
+  addCorsHeaders(res);
+  res.status(200).end();
+});
 
 interface MulterRequest extends Request {
   file?: Express.Multer.File;
@@ -13,10 +26,14 @@ interface MulterRequest extends Request {
 // Upload single image
 router.post('/single', upload.single('image'), async (req: Request, res: Response) => {
   try {
+    addCorsHeaders(res);
+    
     console.log('📤 Single upload request received:', {
       hasFile: !!req.file,
       bodyFolder: req.body?.folder,
-      headers: req.headers['content-type']
+      headers: req.headers['content-type'],
+      origin: req.headers.origin,
+      userAgent: req.headers['user-agent']
     });
 
     if (!req.file) {
@@ -66,10 +83,14 @@ router.post('/single', upload.single('image'), async (req: Request, res: Respons
 // Upload multiple images
 router.post('/multiple', upload.array('images', 10), async (req: Request, res: Response) => {
   try {
+    addCorsHeaders(res);
+    
     console.log('📤 Multiple upload request received:', {
       hasFiles: !!req.files,
       filesCount: Array.isArray(req.files) ? req.files.length : 0,
-      bodyFolder: req.body?.folder
+      bodyFolder: req.body?.folder,
+      origin: req.headers.origin,
+      userAgent: req.headers['user-agent']
     });
 
     if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {

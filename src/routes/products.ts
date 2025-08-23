@@ -615,6 +615,15 @@ router.get('/categories/:category', async (req: express.Request, res: express.Re
   try {
     const { category } = req.params;
     
+    // First, find the category by slug
+    const categoryData = await db.select().from(categories).where(eq(categories.slug, category));
+    
+    if (!categoryData.length) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+    
+    const categoryId = categoryData[0].id;
+    
     const result = await db.select({
       // Product fields
       id: products.id,
@@ -648,9 +657,10 @@ router.get('/categories/:category', async (req: express.Request, res: express.Re
     })
     .from(products)
     .leftJoin(productImages, eq(products.id, productImages.productId))
+    .leftJoin(productCategories, eq(products.id, productCategories.productId))
     .where(and(
       eq(products.status, 'published'),
-      eq(products.seasonType, category)
+      eq(productCategories.categoryId, categoryId)
     ));
     
     // Group by product and collect images

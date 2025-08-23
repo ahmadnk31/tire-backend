@@ -456,6 +456,11 @@ router.get('/brands/:brand', async (req, res) => {
 router.get('/categories/:category', async (req, res) => {
     try {
         const { category } = req.params;
+        const categoryData = await db_1.db.select().from(schema_1.categories).where((0, drizzle_orm_1.eq)(schema_1.categories.slug, category));
+        if (!categoryData.length) {
+            return res.status(404).json({ error: 'Category not found' });
+        }
+        const categoryId = categoryData[0].id;
         const result = await db_1.db.select({
             id: schema_1.products.id,
             name: schema_1.products.name,
@@ -487,7 +492,8 @@ router.get('/categories/:category', async (req, res) => {
         })
             .from(schema_1.products)
             .leftJoin(schema_1.productImages, (0, drizzle_orm_1.eq)(schema_1.products.id, schema_1.productImages.productId))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.products.status, 'published'), (0, drizzle_orm_1.eq)(schema_1.products.seasonType, category)));
+            .leftJoin(schema_1.productCategories, (0, drizzle_orm_1.eq)(schema_1.products.id, schema_1.productCategories.productId))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.products.status, 'published'), (0, drizzle_orm_1.eq)(schema_1.productCategories.categoryId, categoryId)));
         const productsWithImages = result.reduce((acc, row) => {
             const existingProduct = acc.find(p => p.id === row.id);
             if (existingProduct) {

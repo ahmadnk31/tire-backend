@@ -5,6 +5,8 @@ import {
   clearSecurityBlocks,
   getAllSecurityBlocks
 } from '../middleware/securityRateLimit';
+import settingsRouter from './admin/settings';
+import backupsRouter from './admin/backups';
 
 const router = Router();
 
@@ -78,5 +80,9 @@ router.post('/emergency-clear-blocks', requireAuth, requireAdmin, async (req: Re
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// Mount admin sub-routes
+router.use('/settings', settingsRouter);
+router.use('/backups', backupsRouter);
 
 export default router;

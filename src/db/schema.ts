@@ -307,6 +307,18 @@ export const productCategoriesRelations = relations(productCategories, ({ one })
   }),
 }));
 
+// System Settings table
+export const systemSettings = pgTable('system_settings', {
+  id: serial('id').primaryKey(),
+  key: varchar('key', { length: 100 }).notNull().unique(),
+  value: text('value').notNull(),
+  description: text('description'),
+  category: varchar('category', { length: 50 }).notNull().default('general'),
+  updatedBy: integer('updated_by').references(() => users.id),
+  updatedAt: timestamp('updated_at').defaultNow(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
 export const newsletterCampaignsRelations = relations(newsletterCampaigns, ({ one, many }) => ({
   createdBy: one(users, {
     fields: [newsletterCampaigns.createdBy],

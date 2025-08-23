@@ -19,6 +19,7 @@ import {
   clearSecurityBlocks,
   getAllSecurityBlocks
 } from '../middleware/securityRateLimit';
+import { getTokenExpirationString } from '../utils/settings';
 
 const router = express.Router();
 
@@ -210,7 +211,9 @@ router.post('/login',
       // Successful login - clear any previous failed attempts
       recordSuccessfulLogin(email, req);
       
-      const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET!, { expiresIn: '2h' });
+      // Get token expiration from settings
+      const tokenExpiration = await getTokenExpirationString();
+      const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET!, { expiresIn: tokenExpiration as any });
       
       const response: any = {
         token, 
@@ -357,7 +360,9 @@ router.post('/emergency-login', async (req: Request, res: Response) => {
     // Clear all security blocks for this session
     clearSecurityBlocks();
     
-    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET!, { expiresIn: '2h' });
+    // Get token expiration from settings
+    const tokenExpiration = await getTokenExpirationString();
+    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET!, { expiresIn: tokenExpiration as any });
     
     res.json({ 
       token, 

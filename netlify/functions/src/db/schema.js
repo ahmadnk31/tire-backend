@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.contactMessagesRelations = exports.wishlistRelations = exports.newsletterCampaignProductsRelations = exports.newsletterCampaignsRelations = exports.productCategoriesRelations = exports.categoriesRelations = exports.cartItemsRelations = exports.orderItemsRelations = exports.ordersRelations = exports.userAddressesRelations = exports.usersRelations = exports.productImagesRelations = exports.productsRelations = exports.productCategories = exports.categories = exports.newsletterCampaignProducts = exports.newsletterCampaigns = exports.newsletterSubscriptions = exports.contactMessages = exports.banners = exports.cartItems = exports.orderItems = exports.orders = exports.userAddresses = exports.productImages = exports.products = exports.wishlist = exports.users = void 0;
+exports.contactMessagesRelations = exports.wishlistRelations = exports.newsletterCampaignProductsRelations = exports.newsletterCampaignsRelations = exports.systemSettings = exports.productCategoriesRelations = exports.categoriesRelations = exports.cartItemsRelations = exports.orderItemsRelations = exports.ordersRelations = exports.userAddressesRelations = exports.usersRelations = exports.productImagesRelations = exports.productsRelations = exports.productCategories = exports.categories = exports.newsletterCampaignProducts = exports.newsletterCampaigns = exports.newsletterSubscriptions = exports.contactMessages = exports.banners = exports.cartItems = exports.orderItems = exports.orders = exports.userAddresses = exports.productImages = exports.products = exports.wishlist = exports.users = void 0;
 const pg_core_1 = require("drizzle-orm/pg-core");
 const drizzle_orm_1 = require("drizzle-orm");
 exports.users = (0, pg_core_1.pgTable)('users', {
@@ -259,6 +259,16 @@ exports.productCategoriesRelations = (0, drizzle_orm_1.relations)(exports.produc
         references: [exports.categories.id],
     }),
 }));
+exports.systemSettings = (0, pg_core_1.pgTable)('system_settings', {
+    id: (0, pg_core_1.serial)('id').primaryKey(),
+    key: (0, pg_core_1.varchar)('key', { length: 100 }).notNull().unique(),
+    value: (0, pg_core_1.text)('value').notNull(),
+    description: (0, pg_core_1.text)('description'),
+    category: (0, pg_core_1.varchar)('category', { length: 50 }).notNull().default('general'),
+    updatedBy: (0, pg_core_1.integer)('updated_by').references(() => exports.users.id),
+    updatedAt: (0, pg_core_1.timestamp)('updated_at').defaultNow(),
+    createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow(),
+});
 exports.newsletterCampaignsRelations = (0, drizzle_orm_1.relations)(exports.newsletterCampaigns, ({ one, many }) => ({
     createdBy: one(exports.users, {
         fields: [exports.newsletterCampaigns.createdBy],

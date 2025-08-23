@@ -1,8 +1,13 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_1 = require("../middleware/auth");
 const securityRateLimit_1 = require("../middleware/securityRateLimit");
+const settings_1 = __importDefault(require("./admin/settings"));
+const backups_1 = __importDefault(require("./admin/backups"));
 const router = (0, express_1.Router)();
 router.get('/security-blocks', auth_1.requireAuth, auth_1.requireAdmin, async (req, res) => {
     try {
@@ -64,4 +69,6 @@ router.post('/emergency-clear-blocks', auth_1.requireAuth, auth_1.requireAdmin, 
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+router.use('/settings', settings_1.default);
+router.use('/backups', backups_1.default);
 exports.default = router;
