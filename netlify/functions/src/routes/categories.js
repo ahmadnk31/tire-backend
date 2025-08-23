@@ -11,7 +11,28 @@ const router = express_1.default.Router();
 router.get('/', async (req, res) => {
     try {
         const allCategories = await db_1.db.select().from(schema_1.categories);
-        res.json({ categories: allCategories });
+        const categoriesWithCounts = await Promise.all(allCategories.map(async (category) => {
+            const seasonTypeMap = {
+                'Summer Tires': 'summer',
+                'Winter Tires': 'winter',
+                'All-Season Tires': 'all-season',
+                'Performance Tires': 'performance'
+            };
+            const seasonType = seasonTypeMap[category.name];
+            let productCount = 0;
+            if (seasonType) {
+                const countResult = await db_1.db
+                    .select({ count: (0, drizzle_orm_1.count)() })
+                    .from(schema_1.products)
+                    .where((0, drizzle_orm_1.eq)(schema_1.products.seasonType, seasonType));
+                productCount = countResult[0]?.count || 0;
+            }
+            return {
+                ...category,
+                productCount
+            };
+        }));
+        res.json({ categories: categoriesWithCounts });
     }
     catch (error) {
         console.error('Error fetching categories:', error);

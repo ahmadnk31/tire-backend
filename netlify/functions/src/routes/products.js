@@ -162,7 +162,7 @@ router.get('/search', validation_1.searchValidation, validation_1.handleValidati
 });
 router.get('/', validation_1.advancedSearchValidation, validation_1.handleValidationErrors, async (req, res) => {
     try {
-        const { page = '1', limit = '10', brand, model, size, status, featured, minPrice, maxPrice, search, category, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
+        const { page = '1', limit = '10', brand, model, size, status, featured, minPrice, maxPrice, search, category, seasonType, speedRating, loadIndex, tireType, construction, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
         console.log('[API] /api/products called', { page, limit, brand, status, featured, minPrice, maxPrice, search, category, sortBy, sortOrder });
         if (category) {
             console.log('[DEBUG] Received category param:', category);
@@ -197,6 +197,36 @@ router.get('/', validation_1.advancedSearchValidation, validation_1.handleValida
         }
         if (maxPrice) {
             whereConditions.push((0, drizzle_orm_1.lte)(schema_1.products.price, maxPrice));
+        }
+        if (seasonType && seasonType !== 'all') {
+            const seasonTypes = Array.isArray(seasonType) ? seasonType : [seasonType];
+            if (seasonTypes.length > 0) {
+                whereConditions.push((0, drizzle_orm_1.inArray)(schema_1.products.seasonType, seasonTypes));
+            }
+        }
+        if (speedRating && speedRating !== 'all') {
+            const speedRatings = Array.isArray(speedRating) ? speedRating : [speedRating];
+            if (speedRatings.length > 0) {
+                whereConditions.push((0, drizzle_orm_1.inArray)(schema_1.products.speedRating, speedRatings));
+            }
+        }
+        if (loadIndex && loadIndex !== 'all') {
+            const loadIndexes = Array.isArray(loadIndex) ? loadIndex : [loadIndex];
+            if (loadIndexes.length > 0) {
+                whereConditions.push((0, drizzle_orm_1.inArray)(schema_1.products.loadIndex, loadIndexes));
+            }
+        }
+        if (tireType && tireType !== 'all') {
+            const tireTypes = Array.isArray(tireType) ? tireType : [tireType];
+            if (tireTypes.length > 0) {
+                whereConditions.push((0, drizzle_orm_1.inArray)(schema_1.products.tireType, tireTypes));
+            }
+        }
+        if (construction && construction !== 'all') {
+            const constructions = Array.isArray(construction) ? construction : [construction];
+            if (constructions.length > 0) {
+                whereConditions.push((0, drizzle_orm_1.inArray)(schema_1.products.construction, constructions));
+            }
         }
         let categoryFilterIds = [];
         if (category && category !== 'all') {
@@ -334,12 +364,20 @@ router.get('/', validation_1.advancedSearchValidation, validation_1.handleValida
                 return acc;
             }, {});
         }
+        const now = new Date();
         const resultWithCategoriesAndImages = resultWithCategories.map(p => {
             const productImages = imagesByProductId[p.id] || [];
+            const hasComparePrice = p.comparePrice && p.comparePrice > p.price;
+            const isInSalePeriod = (!p.saleStartDate || new Date(p.saleStartDate) <= now) &&
+                (!p.saleEndDate || new Date(p.saleEndDate) >= now);
+            const isOnSale = hasComparePrice && isInSalePeriod;
             return {
                 ...p,
                 productImages,
-                images: productImages
+                images: productImages,
+                isOnSale,
+                saleStartDate: p.saleStartDate,
+                saleEndDate: p.saleEndDate
             };
         });
         console.log('[DEBUG] Filtered products:', resultWithCategoriesAndImages.map(p => ({ id: p.id, name: p.name, categoryIds: p.categoryIds })));
@@ -389,7 +427,7 @@ router.get('/brands/:brand', async (req, res) => {
         const { brand } = req.params;
         const result = await db_1.db.select()
             .from(schema_1.products)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.products.status, 'published'), (0, drizzle_orm_1.eq)(schema_1.products.brand, brand)));
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.products.status, 'published'), (0, drizzle_orm_1.ilike)(schema_1.products.brand, brand)));
         const productIds = result.map(p => p.id);
         let imagesByProductId = {};
         if (productIds.length > 0) {
@@ -506,10 +544,16 @@ router.get('/categories/:category', async (req, res) => {
 });
 router.get('/on-sale', validation_1.paginationValidation, validation_1.handleValidationErrors, async (req, res) => {
     try {
+        const now = new Date();
         const result = await db_1.db.select()
             .from(schema_1.products)
             .where((0, drizzle_orm_1.eq)(schema_1.products.status, 'published'));
-        const onSaleProducts = result.filter(product => product.comparePrice && product.comparePrice > product.price);
+        const onSaleProducts = result.filter(product => {
+            const hasComparePrice = product.comparePrice && product.comparePrice > product.price;
+            const isInSalePeriod = (!product.saleStartDate || new Date(product.saleStartDate) <= now) &&
+                (!product.saleEndDate || new Date(product.saleEndDate) >= now);
+            return hasComparePrice && isInSalePeriod;
+        });
         const productIds = onSaleProducts.map(p => p.id);
         let imagesByProductId = {};
         if (productIds.length > 0) {
@@ -593,13 +637,21 @@ router.get('/:id', validation_1.idParamValidation, validation_1.handleValidation
         if (categoryIds.length > 0) {
             categoriesForProduct = await db_1.db.select().from(schema_1.categories).where((0, drizzle_orm_1.inArray)(schema_1.categories.id, categoryIds));
         }
+        const now = new Date();
+        const hasComparePrice = result[0].comparePrice && result[0].comparePrice > result[0].price;
+        const isInSalePeriod = (!result[0].saleStartDate || new Date(result[0].saleStartDate) <= now) &&
+            (!result[0].saleEndDate || new Date(result[0].saleEndDate) >= now);
+        const isOnSale = hasComparePrice && isInSalePeriod;
         const product = {
             ...result[0],
             productImages: images,
             images: images,
             categories: categoriesForProduct,
             seoTitle: result[0].seoTitle || '',
-            seoDescription: result[0].seoDescription || ''
+            seoDescription: result[0].seoDescription || '',
+            isOnSale,
+            saleStartDate: result[0].saleStartDate,
+            saleEndDate: result[0].saleEndDate
         };
         res.json(product);
     }
@@ -612,7 +664,7 @@ router.post('/', auth_1.requireAuth, auth_1.requireAdmin, validation_1.productVa
     try {
         console.log('🆕 Creating new product with data:', JSON.stringify(req.body, null, 2));
         console.log('🖼️ Images received in request:', req.body.images || req.body.productImages);
-        const { name, brand, model, size, price, comparePrice, stock, lowStockThreshold, status = 'draft', featured = false, sku, description, features, specifications, tags, tireWidth, aspectRatio, rimDiameter, loadIndex, speedRating, seasonType, tireType, seoTitle, seoDescription, productImages: productImagesData, images, categoryIds = [] } = req.body;
+        const { name, brand, model, size, price, comparePrice, stock, lowStockThreshold, status = 'draft', featured = false, sku, description, features, specifications, tags, tireWidth, aspectRatio, rimDiameter, loadIndex, speedRating, seasonType, tireType, treadDepth, construction, saleStartDate, saleEndDate, seoTitle, seoDescription, productImages: productImagesData, images, categoryIds = [] } = req.body;
         const finalSku = sku || `${brand.substring(0, 3).toUpperCase()}-${model.substring(0, 3).toUpperCase()}-${size.replace(/[\/]/g, '-')}`;
         let finalSize = size;
         if (tireWidth && aspectRatio && rimDiameter) {
@@ -641,6 +693,10 @@ router.post('/', auth_1.requireAuth, auth_1.requireAdmin, validation_1.productVa
             speedRating: speedRating || null,
             seasonType: seasonType || null,
             tireType: tireType || null,
+            treadDepth: treadDepth || null,
+            construction: construction || null,
+            saleStartDate: saleStartDate ? new Date(saleStartDate) : null,
+            saleEndDate: saleEndDate ? new Date(saleEndDate) : null,
             seoTitle: seoTitle || null,
             seoDescription: seoDescription || null,
             updatedAt: new Date(),
@@ -734,6 +790,10 @@ router.put('/:id', auth_1.requireAuth, auth_1.requireAdmin, validation_1.idParam
             tireWidth: tireWidth || null,
             aspectRatio: aspectRatio || null,
             rimDiameter: rimDiameter || null,
+            treadDepth: otherData.treadDepth || null,
+            construction: otherData.construction || null,
+            saleStartDate: otherData.saleStartDate ? new Date(otherData.saleStartDate) : null,
+            saleEndDate: otherData.saleEndDate ? new Date(otherData.saleEndDate) : null,
             updatedAt: new Date()
         };
         const result = await db_1.db.update(schema_1.products)

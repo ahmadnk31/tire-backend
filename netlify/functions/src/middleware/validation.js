@@ -94,12 +94,20 @@ exports.productValidation = [
         .withMessage('Speed rating must be between 1 and 5 characters'),
     (0, express_validator_1.body)('seasonType')
         .optional()
-        .isIn(['summer', 'winter', 'all-season'])
-        .withMessage('Season type must be summer, winter, or all-season'),
+        .isIn(['summer', 'winter', 'all-season', 'all-weather'])
+        .withMessage('Season type must be summer, winter, all-season, or all-weather'),
     (0, express_validator_1.body)('tireType')
         .optional()
         .isIn(['passenger', 'suv', 'truck', 'performance', 'commercial', 'touring', 'off-road', 'economy', 'luxury'])
         .withMessage('Tire type must be passenger, suv, truck, performance, commercial, touring, off-road, economy, or luxury'),
+    (0, express_validator_1.body)('treadDepth')
+        .optional()
+        .isLength({ min: 1, max: 10 })
+        .withMessage('Tread depth must be between 1 and 10 characters'),
+    (0, express_validator_1.body)('construction')
+        .optional()
+        .isIn(['radial', 'bias', 'bias-belted'])
+        .withMessage('Construction must be radial, bias, or bias-belted'),
     (0, express_validator_1.body)('status')
         .optional()
         .isIn(['draft', 'published', 'hidden'])
