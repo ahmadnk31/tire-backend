@@ -23,20 +23,20 @@ class S3Service {
   constructor() {
     // Log configuration for debugging (without sensitive data)
     console.log('🔧 S3Service Configuration:', {
-      region: process.env.MY_AWS_REGION || 'us-east-1',
+      region: process.env.MY_AWS_REGION || 'eu-central-1',
       bucket: process.env.MY_AWS_S3_BUCKET_NAME || 'ariana-tire',
       hasAccessKey: !!process.env.MY_AWS_ACCESS_KEY_ID,
       hasSecretKey: !!process.env.MY_AWS_SECRET_ACCESS_KEY,
     });
 
     this.s3Client = new S3Client({
-      region: process.env.MY_AWS_REGION || 'us-east-1',
+      region: process.env.MY_AWS_REGION || 'eu-central-1',
       credentials: {
         accessKeyId: process.env.MY_AWS_ACCESS_KEY_ID || '',
         secretAccessKey: process.env.MY_AWS_SECRET_ACCESS_KEY || '',
       },
     });
-    this.bucketName = process.env.MY_AWS_S3_BUCKET_NAME || 'tire-store-images';
+    this.bucketName = process.env.MY_AWS_S3_BUCKET_NAME || 'ariana-tire';
   }
 
   /**
