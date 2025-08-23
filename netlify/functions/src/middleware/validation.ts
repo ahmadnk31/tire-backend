@@ -210,8 +210,7 @@ export const searchValidation = [
     .optional()
     .isLength({ min: 1, max: 50 })
     .withMessage('Brand filter must be between 1 and 50 characters')
-    .trim()
-    .escape(),
+    .trim(),
   query('category')
     .optional()
     .isLength({ min: 1, max: 50 })

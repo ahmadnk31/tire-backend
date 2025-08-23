@@ -1,15 +1,46 @@
 import express from 'express';
 import { db } from '../db';
-import { categories } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { categories, productCategories, products } from '../db/schema';
+import { eq, count } from 'drizzle-orm';
 
 const router = express.Router();
 
-// GET /api/categories - List all categories
+// GET /api/categories - List all categories with product counts
 router.get('/', async (req, res) => {
   try {
     const allCategories = await db.select().from(categories);
-    res.json({ categories: allCategories });
+    
+    // Get product counts for each category based on seasonType
+    const categoriesWithCounts = await Promise.all(
+      allCategories.map(async (category) => {
+        // Map category names to seasonType values
+        const seasonTypeMap: { [key: string]: string } = {
+          'Summer Tires': 'summer',
+          'Winter Tires': 'winter',
+          'All-Season Tires': 'all-season',
+          'Performance Tires': 'performance'
+        };
+        
+        const seasonType = seasonTypeMap[category.name];
+        let productCount = 0;
+        
+        if (seasonType) {
+          const countResult = await db
+            .select({ count: count() })
+            .from(products)
+            .where(eq(products.seasonType, seasonType));
+          
+          productCount = countResult[0]?.count || 0;
+        }
+        
+        return {
+          ...category,
+          productCount
+        };
+      })
+    );
+    
+    res.json({ categories: categoriesWithCounts });
   } catch (error) {
     console.error('Error fetching categories:', error);
     res.status(500).json({ error: 'Failed to fetch categories' });

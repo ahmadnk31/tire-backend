@@ -4,7 +4,7 @@
 
 
 import express from 'express';
-import { eq, and, like, gte, lte, desc, asc, or, count, SQL, inArray, ne } from 'drizzle-orm';
+import { eq, and, like, ilike, gte, lte, desc, asc, or, count, SQL, inArray, ne } from 'drizzle-orm';
 import { db } from '../db';
 import { products, productImages, productCategories, categories } from '../db/schema';
 import Fuse from 'fuse.js';
@@ -234,6 +234,11 @@ router.get('/', advancedSearchValidation, handleValidationErrors, async (req: ex
       maxPrice, 
       search,
       category,
+      seasonType,
+      speedRating,
+      loadIndex,
+      tireType,
+      construction,
       sortBy = 'createdAt',
       sortOrder = 'desc'
     } = req.query;
@@ -280,6 +285,46 @@ router.get('/', advancedSearchValidation, handleValidationErrors, async (req: ex
     }
     if (maxPrice) {
       whereConditions.push(lte(products.price, maxPrice as string));
+    }
+
+    // Handle multiple season type values
+    if (seasonType && seasonType !== 'all') {
+      const seasonTypes = Array.isArray(seasonType) ? seasonType : [seasonType];
+      if (seasonTypes.length > 0) {
+        whereConditions.push(inArray(products.seasonType, seasonTypes as string[]));
+      }
+    }
+
+    // Handle multiple speed rating values
+    if (speedRating && speedRating !== 'all') {
+      const speedRatings = Array.isArray(speedRating) ? speedRating : [speedRating];
+      if (speedRatings.length > 0) {
+        whereConditions.push(inArray(products.speedRating, speedRatings as string[]));
+      }
+    }
+
+    // Handle multiple load index values
+    if (loadIndex && loadIndex !== 'all') {
+      const loadIndexes = Array.isArray(loadIndex) ? loadIndex : [loadIndex];
+      if (loadIndexes.length > 0) {
+        whereConditions.push(inArray(products.loadIndex, loadIndexes as string[]));
+      }
+    }
+
+    // Handle multiple tire type values
+    if (tireType && tireType !== 'all') {
+      const tireTypes = Array.isArray(tireType) ? tireType : [tireType];
+      if (tireTypes.length > 0) {
+        whereConditions.push(inArray(products.tireType, tireTypes as string[]));
+      }
+    }
+
+    // Handle construction type
+    if (construction && construction !== 'all') {
+      const constructions = Array.isArray(construction) ? construction : [construction];
+      if (constructions.length > 0) {
+        whereConditions.push(inArray(products.construction, constructions as string[]));
+      }
     }
 
     // Category filtering - need to join with productCategories and categories
@@ -460,13 +505,24 @@ router.get('/', advancedSearchValidation, handleValidationErrors, async (req: ex
         }, {} as Record<number, any[]>);
     }
 
-    // Attach images to each product
+    // Attach images to each product and add sale status
+    const now = new Date();
     const resultWithCategoriesAndImages = resultWithCategories.map(p => {
       const productImages = imagesByProductId[p.id] || [];
+      
+      // Determine if product is currently on sale
+      const hasComparePrice = p.comparePrice && p.comparePrice > p.price;
+      const isInSalePeriod = (!p.saleStartDate || new Date(p.saleStartDate) <= now) &&
+                            (!p.saleEndDate || new Date(p.saleEndDate) >= now);
+      const isOnSale = hasComparePrice && isInSalePeriod;
+      
       return {
         ...p,
         productImages,
-        images: productImages // Also include as 'images' for consistency
+        images: productImages, // Also include as 'images' for consistency
+        isOnSale,
+        saleStartDate: p.saleStartDate,
+        saleEndDate: p.saleEndDate
       };
     });
 
@@ -524,7 +580,7 @@ router.get('/brands/:brand', async (req: express.Request, res: express.Response)
       .from(products)
       .where(and(
         eq(products.status, 'published'),
-        eq(products.brand, brand)
+        ilike(products.brand, brand)
       ));
     
     // Attach images to products
@@ -655,14 +711,23 @@ router.get('/categories/:category', async (req: express.Request, res: express.Re
 // GET /api/products/on-sale - Get products with compare price (on sale)
 router.get('/on-sale', paginationValidation, handleValidationErrors, async (req: express.Request, res: express.Response) => {
   try {
+    const now = new Date();
+    
     const result = await db.select()
       .from(products)
       .where(eq(products.status, 'published'));
     
-    // Filter products with compare price greater than current price
-    const onSaleProducts = result.filter(product => 
-      product.comparePrice && product.comparePrice > product.price
-    );
+    // Filter products that are currently on sale based on sale dates and compare price
+    const onSaleProducts = result.filter(product => {
+      // Check if product has a compare price greater than current price
+      const hasComparePrice = product.comparePrice && product.comparePrice > product.price;
+      
+      // Check if product is within sale period
+      const isInSalePeriod = (!product.saleStartDate || new Date(product.saleStartDate) <= now) &&
+                            (!product.saleEndDate || new Date(product.saleEndDate) >= now);
+      
+      return hasComparePrice && isInSalePeriod;
+    });
     
     // Attach images to products
     const productIds = onSaleProducts.map(p => p.id);
@@ -764,13 +829,23 @@ router.get('/:id', idParamValidation, handleValidationErrors, async (req: expres
           categoriesForProduct = await db.select().from(categories).where(inArray(categories.id, categoryIds));
         }
 
+        // Determine if product is currently on sale
+        const now = new Date();
+        const hasComparePrice = result[0].comparePrice && result[0].comparePrice > result[0].price;
+        const isInSalePeriod = (!result[0].saleStartDate || new Date(result[0].saleStartDate) <= now) &&
+                              (!result[0].saleEndDate || new Date(result[0].saleEndDate) >= now);
+        const isOnSale = hasComparePrice && isInSalePeriod;
+
         const product = {
           ...result[0],
           productImages: images,
           images: images, // Also include as 'images' for consistency
           categories: categoriesForProduct,
           seoTitle: result[0].seoTitle || '',
-          seoDescription: result[0].seoDescription || ''
+          seoDescription: result[0].seoDescription || '',
+          isOnSale,
+          saleStartDate: result[0].saleStartDate,
+          saleEndDate: result[0].saleEndDate
         };
         res.json(product);
   } catch (error) {
@@ -812,6 +887,11 @@ router.post('/', requireAuth, requireAdmin, productValidation, handleValidationE
       speedRating,
       seasonType,
       tireType,
+      treadDepth,
+      construction,
+      // Sale fields
+      saleStartDate,
+      saleEndDate,
       // SEO fields
       seoTitle,
       seoDescription,
@@ -855,6 +935,11 @@ router.post('/', requireAuth, requireAdmin, productValidation, handleValidationE
       speedRating: speedRating || null,
       seasonType: seasonType || null,
       tireType: tireType || null,
+      treadDepth: treadDepth || null,
+      construction: construction || null,
+      // Sale fields
+      saleStartDate: saleStartDate ? new Date(saleStartDate) : null,
+      saleEndDate: saleEndDate ? new Date(saleEndDate) : null,
       // SEO fields
       seoTitle: seoTitle || null,
       seoDescription: seoDescription || null,
@@ -983,6 +1068,11 @@ router.put('/:id', requireAuth, requireAdmin, idParamValidation, productValidati
       tireWidth: tireWidth || null,
       aspectRatio: aspectRatio || null,
       rimDiameter: rimDiameter || null,
+      treadDepth: otherData.treadDepth || null,
+      construction: otherData.construction || null,
+      // Sale fields
+      saleStartDate: otherData.saleStartDate ? new Date(otherData.saleStartDate) : null,
+      saleEndDate: otherData.saleEndDate ? new Date(otherData.saleEndDate) : null,
       updatedAt: new Date()
     };
 

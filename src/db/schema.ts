@@ -55,6 +55,12 @@ export const products = pgTable('products', {
   speedRating: varchar('speed_rating', { length: 5 }),
   seasonType: varchar('season_type', { length: 20 }),
   tireType: varchar('tire_type', { length: 30 }),
+  treadDepth: varchar('tread_depth', { length: 10 }),
+  construction: varchar('construction', { length: 20 }),
+  
+  // Sale fields
+  saleStartDate: timestamp('sale_start_date'),
+  saleEndDate: timestamp('sale_end_date'),
   
   features: jsonb('features'), // Array of feature strings
   specifications: jsonb('specifications'), // JSON object with specs
