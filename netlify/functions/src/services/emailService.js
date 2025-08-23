@@ -241,7 +241,7 @@ async function sendVerificationEmail(email, token, language = 'en') {
     console.log('Sending verification email to:', email, 'in language:', language);
     console.log('Environment variables check:', {
         FRONTEND_URL: process.env.FRONTEND_URL,
-        SES_FROM_EMAIL: process.env.SES_FROM_EMAIL,
+        SES_FROM_EMAIL: process.env.MY_SES_FROM_EMAIL,
         MY_AWS_REGION: process.env.MY_AWS_REGION,
         hasAccessKey: !!process.env.MY_AWS_ACCESS_KEY_ID,
         hasSecretKey: !!process.env.MY_AWS_SECRET_ACCESS_KEY
@@ -249,7 +249,7 @@ async function sendVerificationEmail(email, token, language = 'en') {
     if (!process.env.FRONTEND_URL) {
         throw new Error('FRONTEND_URL environment variable is not set');
     }
-    if (!process.env.SES_FROM_EMAIL) {
+    if (!process.env.MY_SES_FROM_EMAIL) {
         throw new Error('SES_FROM_EMAIL environment variable is not set');
     }
     const translations = (0, emailTranslations_1.getEmailTranslation)(language);
@@ -272,7 +272,7 @@ async function sendVerificationEmail(email, token, language = 'en') {
     <p style="word-break: break-all; background: #f8fafc; padding: 10px; border-radius: 4px;">${link}</p>
   `;
     const params = {
-        Source: process.env.SES_FROM_EMAIL,
+        Source: process.env.MY_SES_FROM_EMAIL,
         Destination: { ToAddresses: [email] },
         Message: {
             Subject: { Data: translations.verification.subject },
@@ -306,7 +306,7 @@ async function sendVerificationEmail(email, token, language = 'en') {
 async function sendContactConfirmationEmail(email, name, inquiryType, subject, language = 'en') {
     const translations = (0, emailTranslations_1.getEmailTranslation)(language);
     const params = {
-        Source: process.env.SES_FROM_EMAIL,
+        Source: process.env.MY_SES_FROM_EMAIL,
         Destination: { ToAddresses: [email] },
         Message: {
             Subject: { Data: (0, emailTranslations_1.replaceTemplateVariables)(translations.contactConfirmation.subject, { subject }) },
@@ -320,7 +320,7 @@ async function sendContactConfirmationEmail(email, name, inquiryType, subject, l
 }
 async function sendAdminNotificationEmail(adminEmail, customerName, customerEmail, inquiryType, subject, message, phone) {
     const params = {
-        Source: process.env.SES_FROM_EMAIL,
+        Source: process.env.MY_SES_FROM_EMAIL,
         Destination: { ToAddresses: [adminEmail] },
         Message: {
             Subject: { Data: `🔔 New Contact: ${subject}` },
@@ -334,7 +334,7 @@ async function sendAdminNotificationEmail(adminEmail, customerName, customerEmai
 }
 async function sendNewsletterWelcomeEmail(email, name) {
     const params = {
-        Source: process.env.SES_FROM_EMAIL,
+        Source: process.env.MY_SES_FROM_EMAIL,
         Destination: { ToAddresses: [email] },
         Message: {
             Subject: { Data: 'Welcome to Ariana Bandencentraal Newsletter! 🚗' },
@@ -376,7 +376,7 @@ async function sendPasswordResetEmail(email, token, language = 'en') {
     </div>
   `;
     const params = {
-        Source: process.env.SES_FROM_EMAIL,
+        Source: process.env.MY_SES_FROM_EMAIL,
         Destination: { ToAddresses: [email] },
         Message: {
             Subject: { Data: translations.passwordReset.subject },
@@ -440,7 +440,7 @@ async function sendOrderConfirmationEmail(email, customerName, orderNumber, orde
     </div>
   `;
     const params = {
-        Source: process.env.SES_FROM_EMAIL,
+        Source: process.env.MY_SES_FROM_EMAIL,
         Destination: { ToAddresses: [email] },
         Message: {
             Subject: { Data: `Order Confirmation #${orderNumber} - Ariana Bandencentraal` },
@@ -490,7 +490,7 @@ async function sendAdminReplyEmail(customerEmail, customerName, originalSubject,
     </div>
   `;
     const params = {
-        Source: process.env.SES_FROM_EMAIL,
+        Source: process.env.MY_SES_FROM_EMAIL,
         Destination: { ToAddresses: [customerEmail] },
         Message: {
             Subject: { Data: `Re: ${replySubject} - Ariana Bandencentraal` },
@@ -543,7 +543,7 @@ async function sendNewsletterCampaignEmail(email, subject, message, unsubscribeU
         emailContent = getEmailTemplate(content, 'Newsletter Campaign - Tire Shop');
     }
     const params = {
-        Source: process.env.SES_FROM_EMAIL,
+        Source: process.env.MY_SES_FROM_EMAIL,
         Destination: { ToAddresses: [email] },
         Message: {
             Subject: { Data: subject },

@@ -269,7 +269,7 @@ export async function sendVerificationEmail(email: string, token: string, langua
   console.log('Sending verification email to:', email, 'in language:', language);
   console.log('Environment variables check:', {
     FRONTEND_URL: process.env.FRONTEND_URL,
-    SES_FROM_EMAIL: process.env.SES_FROM_EMAIL,
+    SES_FROM_EMAIL: process.env.MY_SES_FROM_EMAIL,
     MY_AWS_REGION: process.env.MY_AWS_REGION,
     hasAccessKey: !!process.env.MY_AWS_ACCESS_KEY_ID,
     hasSecretKey: !!process.env.MY_AWS_SECRET_ACCESS_KEY
@@ -279,7 +279,7 @@ export async function sendVerificationEmail(email: string, token: string, langua
     throw new Error('FRONTEND_URL environment variable is not set');
   }
   
-  if (!process.env.SES_FROM_EMAIL) {
+  if (!process.env.MY_SES_FROM_EMAIL) {
     throw new Error('SES_FROM_EMAIL environment variable is not set');
   }
   
@@ -305,7 +305,7 @@ export async function sendVerificationEmail(email: string, token: string, langua
   `;
 
   const params = {
-    Source: process.env.SES_FROM_EMAIL,
+    Source: process.env.MY_SES_FROM_EMAIL,
     Destination: { ToAddresses: [email] },
     Message: {
       Subject: { Data: translations.verification.subject },
@@ -342,7 +342,7 @@ export async function sendVerificationEmail(email: string, token: string, langua
 export async function sendContactConfirmationEmail(email: string, name: string, inquiryType: string, subject: string, language: string = 'en') {
   const translations = getEmailTranslation(language);
   const params = {
-    Source: process.env.SES_FROM_EMAIL!,
+    Source: process.env.MY_SES_FROM_EMAIL!,
     Destination: { ToAddresses: [email] },
     Message: {
       Subject: { Data: replaceTemplateVariables(translations.contactConfirmation.subject, { subject }) },
@@ -367,7 +367,7 @@ export async function sendAdminNotificationEmail(
   phone?: string
 ) {
   const params = {
-    Source: process.env.SES_FROM_EMAIL!,
+    Source: process.env.MY_SES_FROM_EMAIL!,
     Destination: { ToAddresses: [adminEmail] },
     Message: {
       Subject: { Data: `🔔 New Contact: ${subject}` },
@@ -384,7 +384,7 @@ export async function sendAdminNotificationEmail(
 // Send newsletter welcome email
 export async function sendNewsletterWelcomeEmail(email: string, name?: string) {
   const params = {
-    Source: process.env.SES_FROM_EMAIL!,
+    Source: process.env.MY_SES_FROM_EMAIL!,
     Destination: { ToAddresses: [email] },
     Message: {
       Subject: { Data: 'Welcome to Ariana Bandencentraal Newsletter! 🚗' },
@@ -431,7 +431,7 @@ export async function sendPasswordResetEmail(email: string, token: string, langu
   `;
 
   const params = {
-    Source: process.env.SES_FROM_EMAIL!,
+    Source: process.env.MY_SES_FROM_EMAIL!,
     Destination: { ToAddresses: [email] },
     Message: {
       Subject: { Data: translations.passwordReset.subject },
@@ -508,7 +508,7 @@ export async function sendOrderConfirmationEmail(
   `;
 
   const params = {
-    Source: process.env.SES_FROM_EMAIL!,
+    Source: process.env.MY_SES_FROM_EMAIL!,
     Destination: { ToAddresses: [email] },
     Message: {
       Subject: { Data: `Order Confirmation #${orderNumber} - Ariana Bandencentraal` },
@@ -571,7 +571,7 @@ export async function sendAdminReplyEmail(
   `;
 
   const params = {
-    Source: process.env.SES_FROM_EMAIL!,
+    Source: process.env.MY_SES_FROM_EMAIL!,
     Destination: { ToAddresses: [customerEmail] },
     Message: {
       Subject: { Data: `Re: ${replySubject} - Ariana Bandencentraal` },
@@ -634,7 +634,7 @@ export async function sendNewsletterCampaignEmail(
   }
 
   const params = {
-    Source: process.env.SES_FROM_EMAIL!,
+    Source: process.env.MY_SES_FROM_EMAIL!,
     Destination: { ToAddresses: [email] },
     Message: {
       Subject: { Data: subject },

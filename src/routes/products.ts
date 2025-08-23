@@ -871,6 +871,7 @@ router.get('/:id', idParamValidation, handleValidationErrors, async (req: expres
 router.post('/', requireAuth, requireAdmin, productValidation, handleValidationErrors, async (req: express.Request, res: express.Response) => {
   try {
     console.log('🆕 Creating new product with data:', JSON.stringify(req.body, null, 2));
+    console.log('🚗 Vehicle Type/Tire Type in creation:', { tireType: req.body.tireType, vehicleType: req.body.vehicleType });
     console.log('🖼️ Images received in request:', req.body.images || req.body.productImages);
 
     const {
@@ -921,7 +922,7 @@ router.post('/', requireAuth, requireAdmin, productValidation, handleValidationE
       finalSize = `${tireWidth}/${aspectRatio}R${rimDiameter}`;
     }
 
-    const newProduct = await db.insert(products).values({
+    const insertData = {
       name,
       brand,
       model,
@@ -954,7 +955,12 @@ router.post('/', requireAuth, requireAdmin, productValidation, handleValidationE
       seoTitle: seoTitle || null,
       seoDescription: seoDescription || null,
       updatedAt: new Date(),
-    }).returning();
+    };
+    
+    console.log('🗄️ Database insert data:', JSON.stringify(insertData, null, 2));
+    console.log('🚗 Tire Type being inserted:', insertData.tireType);
+    
+    const newProduct = await db.insert(products).values(insertData).returning();
 
     // Debug: log newProduct result
     console.log('🟢 newProduct result:', newProduct);
@@ -1028,6 +1034,7 @@ router.put('/:id', requireAuth, requireAdmin, idParamValidation, productValidati
   try {
     const productId = parseInt(req.params.id);
     console.log('🔄 Updating product with data:', JSON.stringify(req.body, null, 2));
+    console.log('🚗 Vehicle Type/Tire Type in update:', { tireType: req.body.tireType, vehicleType: req.body.vehicleType });
     console.log('🖼️ Raw images data for update:', { productImages: req.body.productImages, images: req.body.images });
     console.log('🟢 Received images:', req.body.images);
     const {
@@ -1078,6 +1085,10 @@ router.put('/:id', requireAuth, requireAdmin, idParamValidation, productValidati
       tireWidth: tireWidth || null,
       aspectRatio: aspectRatio || null,
       rimDiameter: rimDiameter || null,
+      loadIndex: otherData.loadIndex || null,
+      speedRating: otherData.speedRating || null,
+      seasonType: otherData.seasonType || null,
+      tireType: otherData.tireType || null,
       treadDepth: otherData.treadDepth || null,
       construction: otherData.construction || null,
       // Sale fields
@@ -1085,6 +1096,9 @@ router.put('/:id', requireAuth, requireAdmin, idParamValidation, productValidati
       saleEndDate: otherData.saleEndDate ? new Date(otherData.saleEndDate) : null,
       updatedAt: new Date()
     };
+    
+    console.log('🗄️ Database update data:', JSON.stringify(updateData, null, 2));
+    console.log('🚗 Tire Type being updated:', updateData.tireType);
 
     const result = await db.update(products)
       .set(updateData)

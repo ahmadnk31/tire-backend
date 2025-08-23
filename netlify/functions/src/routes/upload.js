@@ -179,7 +179,7 @@ router.get('/test-s3', async (req, res) => {
             success: true,
             message: 'S3 configuration and connection are working properly',
             config: {
-                region: process.env.MY_AWS_REGION || 'us-east-1',
+                region: process.env.MY_AWS_REGION || 'eu-central-1',
                 bucket: process.env.MY_AWS_S3_BUCKET_NAME,
                 hasCredentials: !!(process.env.MY_AWS_ACCESS_KEY_ID && process.env.MY_AWS_SECRET_ACCESS_KEY)
             }

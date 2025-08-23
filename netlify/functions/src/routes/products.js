@@ -669,6 +669,7 @@ router.get('/:id', validation_1.idParamValidation, validation_1.handleValidation
 router.post('/', auth_1.requireAuth, auth_1.requireAdmin, validation_1.productValidation, validation_1.handleValidationErrors, async (req, res) => {
     try {
         console.log('🆕 Creating new product with data:', JSON.stringify(req.body, null, 2));
+        console.log('🚗 Vehicle Type/Tire Type in creation:', { tireType: req.body.tireType, vehicleType: req.body.vehicleType });
         console.log('🖼️ Images received in request:', req.body.images || req.body.productImages);
         const { name, brand, model, size, price, comparePrice, stock, lowStockThreshold, status = 'draft', featured = false, sku, description, features, specifications, tags, tireWidth, aspectRatio, rimDiameter, loadIndex, speedRating, seasonType, tireType, treadDepth, construction, saleStartDate, saleEndDate, seoTitle, seoDescription, productImages: productImagesData, images, categoryIds = [] } = req.body;
         const finalSku = sku || `${brand.substring(0, 3).toUpperCase()}-${model.substring(0, 3).toUpperCase()}-${size.replace(/[\/]/g, '-')}`;
@@ -676,7 +677,7 @@ router.post('/', auth_1.requireAuth, auth_1.requireAdmin, validation_1.productVa
         if (tireWidth && aspectRatio && rimDiameter) {
             finalSize = `${tireWidth}/${aspectRatio}R${rimDiameter}`;
         }
-        const newProduct = await db_1.db.insert(schema_1.products).values({
+        const insertData = {
             name,
             brand,
             model,
@@ -706,7 +707,10 @@ router.post('/', auth_1.requireAuth, auth_1.requireAdmin, validation_1.productVa
             seoTitle: seoTitle || null,
             seoDescription: seoDescription || null,
             updatedAt: new Date(),
-        }).returning();
+        };
+        console.log('🗄️ Database insert data:', JSON.stringify(insertData, null, 2));
+        console.log('🚗 Tire Type being inserted:', insertData.tireType);
+        const newProduct = await db_1.db.insert(schema_1.products).values(insertData).returning();
         console.log('🟢 newProduct result:', newProduct);
         if (!newProduct || !Array.isArray(newProduct) || !newProduct[0] || typeof newProduct[0].id === 'undefined') {
             console.error('❌ newProduct[0].id is undefined! Cannot insert images.');
@@ -769,6 +773,7 @@ router.put('/:id', auth_1.requireAuth, auth_1.requireAdmin, validation_1.idParam
     try {
         const productId = parseInt(req.params.id);
         console.log('🔄 Updating product with data:', JSON.stringify(req.body, null, 2));
+        console.log('🚗 Vehicle Type/Tire Type in update:', { tireType: req.body.tireType, vehicleType: req.body.vehicleType });
         console.log('🖼️ Raw images data for update:', { productImages: req.body.productImages, images: req.body.images });
         console.log('🟢 Received images:', req.body.images);
         const { productImages: productImagesData, images, categoryIds, tireWidth, aspectRatio, rimDiameter, size: providedSize, price, comparePrice, ...otherData } = req.body;
@@ -796,12 +801,18 @@ router.put('/:id', auth_1.requireAuth, auth_1.requireAdmin, validation_1.idParam
             tireWidth: tireWidth || null,
             aspectRatio: aspectRatio || null,
             rimDiameter: rimDiameter || null,
+            loadIndex: otherData.loadIndex || null,
+            speedRating: otherData.speedRating || null,
+            seasonType: otherData.seasonType || null,
+            tireType: otherData.tireType || null,
             treadDepth: otherData.treadDepth || null,
             construction: otherData.construction || null,
             saleStartDate: otherData.saleStartDate ? new Date(otherData.saleStartDate) : null,
             saleEndDate: otherData.saleEndDate ? new Date(otherData.saleEndDate) : null,
             updatedAt: new Date()
         };
+        console.log('🗄️ Database update data:', JSON.stringify(updateData, null, 2));
+        console.log('🚗 Tire Type being updated:', updateData.tireType);
         const result = await db_1.db.update(schema_1.products)
             .set(updateData)
             .where((0, drizzle_orm_1.eq)(schema_1.products.id, productId))
