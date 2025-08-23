@@ -6,14 +6,26 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const upload_1 = require("../middleware/upload");
 const s3Service_1 = __importDefault(require("../services/s3Service"));
+const addCorsHeaders = (res) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+};
 const router = express_1.default.Router();
 const s3Service = new s3Service_1.default();
+router.options('*', (req, res) => {
+    addCorsHeaders(res);
+    res.status(200).end();
+});
 router.post('/single', upload_1.upload.single('image'), async (req, res) => {
     try {
+        addCorsHeaders(res);
         console.log('📤 Single upload request received:', {
             hasFile: !!req.file,
             bodyFolder: req.body?.folder,
-            headers: req.headers['content-type']
+            headers: req.headers['content-type'],
+            origin: req.headers.origin,
+            userAgent: req.headers['user-agent']
         });
         if (!req.file) {
             console.log('❌ No file in request');
@@ -57,10 +69,13 @@ router.post('/single', upload_1.upload.single('image'), async (req, res) => {
 });
 router.post('/multiple', upload_1.upload.array('images', 10), async (req, res) => {
     try {
+        addCorsHeaders(res);
         console.log('📤 Multiple upload request received:', {
             hasFiles: !!req.files,
             filesCount: Array.isArray(req.files) ? req.files.length : 0,
-            bodyFolder: req.body?.folder
+            bodyFolder: req.body?.folder,
+            origin: req.headers.origin,
+            userAgent: req.headers['user-agent']
         });
         if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
             console.log('❌ No files in request');

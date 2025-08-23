@@ -12,6 +12,7 @@ const drizzle_orm_1 = require("drizzle-orm");
 const emailService_1 = require("../services/emailService");
 const auth_1 = require("../middleware/auth");
 const securityRateLimit_1 = require("../middleware/securityRateLimit");
+const settings_1 = require("../utils/settings");
 const router = express_1.default.Router();
 router.post('/resend-verification', async (req, res) => {
     const { email, language } = req.body;
@@ -159,7 +160,8 @@ router.post('/login', securityRateLimit_1.enhancedLoginRateLimit, securityRateLi
             return res.status(401).json(response);
         }
         (0, securityRateLimit_1.recordSuccessfulLogin)(email, req);
-        const token = jsonwebtoken_1.default.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '2h' });
+        const tokenExpiration = await (0, settings_1.getTokenExpirationString)();
+        const token = jsonwebtoken_1.default.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: tokenExpiration });
         const response = {
             token,
             user: {
@@ -276,7 +278,8 @@ router.post('/emergency-login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
         (0, securityRateLimit_1.clearSecurityBlocks)();
-        const token = jsonwebtoken_1.default.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '2h' });
+        const tokenExpiration = await (0, settings_1.getTokenExpirationString)();
+        const token = jsonwebtoken_1.default.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: tokenExpiration });
         res.json({
             token,
             user: {

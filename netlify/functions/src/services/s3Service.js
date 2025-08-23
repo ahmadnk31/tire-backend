@@ -10,19 +10,19 @@ const path_1 = __importDefault(require("path"));
 class S3Service {
     constructor() {
         console.log('🔧 S3Service Configuration:', {
-            region: process.env.MY_AWS_REGION || 'us-east-1',
-            bucket: process.env.MY_AWS_S3_BUCKET_NAME || 'tire-store-images',
+            region: process.env.MY_AWS_REGION || 'eu-central-1',
+            bucket: process.env.MY_AWS_S3_BUCKET_NAME || 'ariana-tire',
             hasAccessKey: !!process.env.MY_AWS_ACCESS_KEY_ID,
             hasSecretKey: !!process.env.MY_AWS_SECRET_ACCESS_KEY,
         });
         this.s3Client = new client_s3_1.S3Client({
-            region: process.env.MY_AWS_REGION || 'us-east-1',
+            region: process.env.MY_AWS_REGION || 'eu-central-1',
             credentials: {
                 accessKeyId: process.env.MY_AWS_ACCESS_KEY_ID || '',
                 secretAccessKey: process.env.MY_AWS_SECRET_ACCESS_KEY || '',
             },
         });
-        this.bucketName = process.env.MY_AWS_S3_BUCKET_NAME || 'tire-store-images';
+        this.bucketName = process.env.MY_AWS_S3_BUCKET_NAME || 'ariana-tire';
     }
     async uploadFile({ file, filename, mimetype, folder = 'products' }) {
         try {

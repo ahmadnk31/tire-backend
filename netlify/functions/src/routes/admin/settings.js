@@ -8,6 +8,7 @@ const auth_1 = require("../../middleware/auth");
 const db_1 = require("../../db");
 const schema_1 = require("../../db/schema");
 const drizzle_orm_1 = require("drizzle-orm");
+const settings_1 = require("../../utils/settings");
 const router = express_1.default.Router();
 router.get('/', auth_1.requireAuth, auth_1.requireAdmin, async (req, res) => {
     try {
@@ -78,6 +79,7 @@ router.put('/', auth_1.requireAuth, auth_1.requireAdmin, async (req, res) => {
                 },
             });
         }
+        (0, settings_1.clearSettingsCache)();
         res.json({ success: true, message: 'Settings updated successfully' });
     }
     catch (error) {
