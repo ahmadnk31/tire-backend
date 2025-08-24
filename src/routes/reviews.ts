@@ -334,17 +334,6 @@ router.post('/', requireAuth, async (req: any, res: any) => {
     
     console.log('✅ [REVIEWS API] Product found:', product[0].name);
     
-    // Check if user has already reviewed this product
-    const existingReview = await db
-      .select()
-      .from(productReviews)
-      .where(and(eq(productReviews.productId, productId), eq(productReviews.userId, userId)))
-      .limit(1);
-    
-    if (existingReview.length > 0) {
-      return res.status(400).json({ error: 'You have already reviewed this product' });
-    }
-    
     // Check if orderId is provided and belongs to user
     let isVerifiedPurchase = false;
     if (orderId) {
