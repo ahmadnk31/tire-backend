@@ -12,6 +12,46 @@ const drizzle_orm_1 = require("drizzle-orm");
 const s3Service_1 = __importDefault(require("../services/s3Service"));
 const router = express_1.default.Router();
 const s3Service = new s3Service_1.default();
+router.get('/stats/:productId', async (req, res) => {
+    console.log('🔍 [REVIEWS API] GET /stats/:productId called');
+    try {
+        const { productId } = req.params;
+        const totalCount = await db_1.db
+            .select({ count: (0, drizzle_orm_1.count)() })
+            .from(schema_1.productReviews)
+            .where((0, drizzle_orm_1.eq)(schema_1.productReviews.productId, Number(productId)));
+        const avgRating = await db_1.db
+            .select({ avg: (0, drizzle_orm_1.avg)(schema_1.productReviews.rating) })
+            .from(schema_1.productReviews)
+            .where((0, drizzle_orm_1.eq)(schema_1.productReviews.productId, Number(productId)));
+        const averageRating = avgRating[0].avg !== null ? Number(avgRating[0].avg) : 0;
+        const ratingDistribution = await db_1.db
+            .select({
+            rating: schema_1.productReviews.rating,
+            count: (0, drizzle_orm_1.count)()
+        })
+            .from(schema_1.productReviews)
+            .where((0, drizzle_orm_1.eq)(schema_1.productReviews.productId, Number(productId)))
+            .groupBy(schema_1.productReviews.rating);
+        const ratingDist = ratingDistribution.reduce((acc, item) => {
+            acc[item.rating] = Number(item.count);
+            return acc;
+        }, {});
+        const response = {
+            stats: {
+                averageRating: averageRating,
+                totalReviews: totalCount[0].count,
+                ratingDistribution: ratingDist,
+            },
+        };
+        console.log('✅ [REVIEWS API] Stats response:', response);
+        res.json(response);
+    }
+    catch (error) {
+        console.error('❌ [REVIEWS API] Error fetching review stats:', error);
+        res.status(500).json({ error: 'Failed to fetch review stats' });
+    }
+});
 router.get('/test', async (req, res) => {
     console.log('🧪 [REVIEWS API] Test endpoint called');
     try {
@@ -131,7 +171,7 @@ router.get('/product/:productId', async (req, res) => {
         const avgRating = await db_1.db
             .select({ avg: (0, drizzle_orm_1.avg)(schema_1.productReviews.rating) })
             .from(schema_1.productReviews)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.productReviews.productId, Number(productId)), (0, drizzle_orm_1.eq)(schema_1.productReviews.status, 'approved')));
+            .where((0, drizzle_orm_1.and)(...finalWhereConditions));
         const averageRating = avgRating[0].avg !== null ? Number(avgRating[0].avg) : 0;
         const ratingDistribution = await db_1.db
             .select({
@@ -139,7 +179,7 @@ router.get('/product/:productId', async (req, res) => {
             count: (0, drizzle_orm_1.count)()
         })
             .from(schema_1.productReviews)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.productReviews.productId, Number(productId)), (0, drizzle_orm_1.eq)(schema_1.productReviews.status, 'approved')))
+            .where((0, drizzle_orm_1.and)(...finalWhereConditions))
             .groupBy(schema_1.productReviews.rating);
         const ratingDist = ratingDistribution.reduce((acc, item) => {
             acc[item.rating] = Number(item.count);
@@ -163,6 +203,7 @@ router.get('/product/:productId', async (req, res) => {
         console.log('📈 [REVIEWS API] Statistics calculated:', {
             totalCount: totalCount[0].count,
             averageRating: averageRating,
+            ratingDistribution: ratingDist,
             groupedReviewsCount: groupedReviews.length
         });
         const response = {

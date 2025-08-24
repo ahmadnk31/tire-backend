@@ -10,6 +10,60 @@ import { upload, handleMulterError } from '../middleware/upload';
 const router = express.Router();
 const s3Service = new S3Service();
 
+// Get review stats for a product (includes all reviews for stats)
+router.get('/stats/:productId', async (req, res) => {
+  console.log('🔍 [REVIEWS API] GET /stats/:productId called');
+  
+  try {
+    const { productId } = req.params;
+    
+    // Get total count of all reviews
+    const totalCount = await db
+      .select({ count: count() })
+      .from(productReviews)
+      .where(eq(productReviews.productId, Number(productId)));
+    
+    // Get average rating of all reviews
+    const avgRating = await db
+      .select({ avg: avg(productReviews.rating) })
+      .from(productReviews)
+      .where(eq(productReviews.productId, Number(productId)));
+    
+    // Ensure averageRating is a number
+    const averageRating = avgRating[0].avg !== null ? Number(avgRating[0].avg) : 0;
+
+    // Get rating distribution of all reviews
+    const ratingDistribution = await db
+      .select({
+        rating: productReviews.rating,
+        count: count()
+      })
+      .from(productReviews)
+      .where(eq(productReviews.productId, Number(productId)))
+      .groupBy(productReviews.rating);
+
+    // Convert to object format { 1: count, 2: count, etc. }
+    const ratingDist = ratingDistribution.reduce((acc, item) => {
+      acc[item.rating] = Number(item.count);
+      return acc;
+    }, {} as Record<number, number>);
+    
+    const response = {
+      stats: {
+        averageRating: averageRating,
+        totalReviews: totalCount[0].count,
+        ratingDistribution: ratingDist,
+      },
+    };
+    
+    console.log('✅ [REVIEWS API] Stats response:', response);
+    res.json(response);
+  } catch (error) {
+    console.error('❌ [REVIEWS API] Error fetching review stats:', error);
+    res.status(500).json({ error: 'Failed to fetch review stats' });
+  }
+});
+
 // Test endpoint to verify reviews route is working
 router.get('/test', async (req, res) => {
   console.log('🧪 [REVIEWS API] Test endpoint called');
@@ -156,23 +210,23 @@ router.get('/product/:productId', async (req, res) => {
       .from(productReviews)
       .where(and(...finalWhereConditions));
     
-    // Get average rating
+        // Get average rating - include all reviews for stats (approved + pending for the user)
     const avgRating = await db
       .select({ avg: avg(productReviews.rating) })
       .from(productReviews)
-      .where(and(eq(productReviews.productId, Number(productId)), eq(productReviews.status, 'approved')));
-    
+      .where(and(...finalWhereConditions));
+
     // Ensure averageRating is a number
     const averageRating = avgRating[0].avg !== null ? Number(avgRating[0].avg) : 0;
 
-    // Get rating distribution
+    // Get rating distribution - include all reviews for stats
     const ratingDistribution = await db
       .select({
         rating: productReviews.rating,
         count: count()
       })
       .from(productReviews)
-      .where(and(eq(productReviews.productId, Number(productId)), eq(productReviews.status, 'approved')))
+      .where(and(...finalWhereConditions))
       .groupBy(productReviews.rating);
 
     // Convert to object format { 1: count, 2: count, etc. }
@@ -200,6 +254,7 @@ router.get('/product/:productId', async (req, res) => {
     console.log('📈 [REVIEWS API] Statistics calculated:', {
       totalCount: totalCount[0].count,
       averageRating: averageRating,
+      ratingDistribution: ratingDist,
       groupedReviewsCount: groupedReviews.length
     });
     
