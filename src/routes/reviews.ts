@@ -721,8 +721,24 @@ router.get('/admin/all', requireAuth, requireAdmin, async (req, res) => {
     
     console.log('🔍 [REVIEWS API] All reviews raw data:', allReviews);
     
+    // Group reviews by review ID and collect images
+    const groupedReviews = allReviews.reduce((acc, review) => {
+      const existingReview = acc.find(r => r.id === review.id);
+      if (existingReview) {
+        if (review.images) {
+          existingReview.images.push(review.images);
+        }
+      } else {
+        acc.push({
+          ...review,
+          images: review.images ? [review.images] : [],
+        });
+      }
+      return acc;
+    }, [] as any[]);
+    
     res.json({
-      reviews: allReviews,
+      reviews: groupedReviews,
       pagination: {
         page: Number(page),
         limit: Number(limit),
@@ -780,8 +796,24 @@ router.get('/admin/pending', requireAuth, requireAdmin, async (req, res) => {
     
     console.log('🔍 [REVIEWS API] Pending reviews raw data:', pendingReviews);
     
+    // Group reviews by review ID and collect images
+    const groupedPendingReviews = pendingReviews.reduce((acc, review) => {
+      const existingReview = acc.find(r => r.id === review.id);
+      if (existingReview) {
+        if (review.images) {
+          existingReview.images.push(review.images);
+        }
+      } else {
+        acc.push({
+          ...review,
+          images: review.images ? [review.images] : [],
+        });
+      }
+      return acc;
+    }, [] as any[]);
+    
     res.json({
-      reviews: pendingReviews,
+      reviews: groupedPendingReviews,
       pagination: {
         page: Number(page),
         limit: Number(limit),
