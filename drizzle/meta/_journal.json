@@ -36,6 +36,20 @@
       "when": 1755962975854,
       "tag": "0004_nice_human_cannonball",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1755988020334,
+      "tag": "0005_fantastic_jack_power",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1756026859734,
+      "tag": "0006_organic_namor",
+      "breakpoints": true
     }
   ]
 }

@@ -203,6 +203,40 @@ export const newsletterCampaigns = pgTable('newsletter_campaigns', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+// Product Reviews table
+export const productReviews = pgTable('product_reviews', {
+  id: serial('id').primaryKey(),
+  productId: integer('product_id').references(() => products.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  orderId: integer('order_id').references(() => orders.id), // Optional - link to specific order
+  rating: integer('rating').notNull(), // 1-5 stars
+  title: varchar('title', { length: 255 }),
+  comment: text('comment'),
+  status: varchar('status', { length: 20 }).notNull().default('pending'), // 'pending', 'approved', 'rejected'
+  isVerifiedPurchase: boolean('is_verified_purchase').default(false),
+  helpfulCount: integer('helpful_count').default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// Review Images table
+export const reviewImages = pgTable('review_images', {
+  id: serial('id').primaryKey(),
+  reviewId: integer('review_id').references(() => productReviews.id, { onDelete: 'cascade' }),
+  imageUrl: varchar('image_url', { length: 500 }).notNull(),
+  altText: varchar('alt_text', { length: 255 }),
+  sortOrder: integer('sort_order').default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Review Helpful Votes table
+export const reviewHelpfulVotes = pgTable('review_helpful_votes', {
+  id: serial('id').primaryKey(),
+  reviewId: integer('review_id').references(() => productReviews.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+ 
 // Newsletter Campaign Products junction table
 export const newsletterCampaignProducts = pgTable('newsletter_campaign_products', {
   id: serial('id').primaryKey(),
@@ -353,5 +387,28 @@ export const contactMessagesRelations = relations(contactMessages, ({ one }) => 
   user: one(users, {
     fields: [contactMessages.userId],
     references: [users.id],
+  }),
+}));
+
+export const productReviewsRelations = relations(productReviews, ({ one, many }) => ({
+  product: one(products, {
+    fields: [productReviews.productId],
+    references: [products.id],
+  }),
+  user: one(users, {
+    fields: [productReviews.userId],
+    references: [users.id],
+  }),
+  order: one(orders, {
+    fields: [productReviews.orderId],
+    references: [orders.id],
+  }),
+  images: many(reviewImages),
+}));
+
+export const reviewImagesRelations = relations(reviewImages, ({ one }) => ({
+  review: one(productReviews, {
+    fields: [reviewImages.reviewId],
+    references: [productReviews.id],
   }),
 }));

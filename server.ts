@@ -157,6 +157,7 @@ import bannersRouter from './src/routes/banners';
 import bulkRouter from './src/routes/bulk';
 import contactRouter from './src/routes/contact';
 import testRouter from './src/routes/test';
+import reviewsRouter from './src/routes/reviews';
 
 
 // Apply additional rate limiting to specific routes
@@ -176,6 +177,8 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/bulk', bulkRouter);
 app.use('/api/contact', contactRouter);
 app.use('/api/test', testRouter);
+app.use('/api/reviews', reviewsRouter);
+console.log('✅ [SERVER] Reviews router registered at /api/reviews');
 app.use('/api/stripe', stripeRoutes);
 
 

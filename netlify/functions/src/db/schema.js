@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.contactMessagesRelations = exports.wishlistRelations = exports.newsletterCampaignProductsRelations = exports.newsletterCampaignsRelations = exports.systemSettings = exports.productCategoriesRelations = exports.categoriesRelations = exports.cartItemsRelations = exports.orderItemsRelations = exports.ordersRelations = exports.userAddressesRelations = exports.usersRelations = exports.productImagesRelations = exports.productsRelations = exports.productCategories = exports.categories = exports.newsletterCampaignProducts = exports.newsletterCampaigns = exports.newsletterSubscriptions = exports.contactMessages = exports.banners = exports.cartItems = exports.orderItems = exports.orders = exports.userAddresses = exports.productImages = exports.products = exports.wishlist = exports.users = void 0;
+exports.reviewImagesRelations = exports.productReviewsRelations = exports.contactMessagesRelations = exports.wishlistRelations = exports.newsletterCampaignProductsRelations = exports.newsletterCampaignsRelations = exports.systemSettings = exports.productCategoriesRelations = exports.categoriesRelations = exports.cartItemsRelations = exports.orderItemsRelations = exports.ordersRelations = exports.userAddressesRelations = exports.usersRelations = exports.productImagesRelations = exports.productsRelations = exports.productCategories = exports.categories = exports.newsletterCampaignProducts = exports.reviewHelpfulVotes = exports.reviewImages = exports.productReviews = exports.newsletterCampaigns = exports.newsletterSubscriptions = exports.contactMessages = exports.banners = exports.cartItems = exports.orderItems = exports.orders = exports.userAddresses = exports.productImages = exports.products = exports.wishlist = exports.users = void 0;
 const pg_core_1 = require("drizzle-orm/pg-core");
 const drizzle_orm_1 = require("drizzle-orm");
 exports.users = (0, pg_core_1.pgTable)('users', {
@@ -172,6 +172,34 @@ exports.newsletterCampaigns = (0, pg_core_1.pgTable)('newsletter_campaigns', {
     createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow(),
     updatedAt: (0, pg_core_1.timestamp)('updated_at').defaultNow(),
 });
+exports.productReviews = (0, pg_core_1.pgTable)('product_reviews', {
+    id: (0, pg_core_1.serial)('id').primaryKey(),
+    productId: (0, pg_core_1.integer)('product_id').references(() => exports.products.id, { onDelete: 'cascade' }),
+    userId: (0, pg_core_1.integer)('user_id').references(() => exports.users.id, { onDelete: 'cascade' }),
+    orderId: (0, pg_core_1.integer)('order_id').references(() => exports.orders.id),
+    rating: (0, pg_core_1.integer)('rating').notNull(),
+    title: (0, pg_core_1.varchar)('title', { length: 255 }),
+    comment: (0, pg_core_1.text)('comment'),
+    status: (0, pg_core_1.varchar)('status', { length: 20 }).notNull().default('pending'),
+    isVerifiedPurchase: (0, pg_core_1.boolean)('is_verified_purchase').default(false),
+    helpfulCount: (0, pg_core_1.integer)('helpful_count').default(0),
+    createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow(),
+    updatedAt: (0, pg_core_1.timestamp)('updated_at').defaultNow(),
+});
+exports.reviewImages = (0, pg_core_1.pgTable)('review_images', {
+    id: (0, pg_core_1.serial)('id').primaryKey(),
+    reviewId: (0, pg_core_1.integer)('review_id').references(() => exports.productReviews.id, { onDelete: 'cascade' }),
+    imageUrl: (0, pg_core_1.varchar)('image_url', { length: 500 }).notNull(),
+    altText: (0, pg_core_1.varchar)('alt_text', { length: 255 }),
+    sortOrder: (0, pg_core_1.integer)('sort_order').default(0),
+    createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow(),
+});
+exports.reviewHelpfulVotes = (0, pg_core_1.pgTable)('review_helpful_votes', {
+    id: (0, pg_core_1.serial)('id').primaryKey(),
+    reviewId: (0, pg_core_1.integer)('review_id').references(() => exports.productReviews.id, { onDelete: 'cascade' }),
+    userId: (0, pg_core_1.integer)('user_id').references(() => exports.users.id, { onDelete: 'cascade' }),
+    createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow(),
+});
 exports.newsletterCampaignProducts = (0, pg_core_1.pgTable)('newsletter_campaign_products', {
     id: (0, pg_core_1.serial)('id').primaryKey(),
     campaignId: (0, pg_core_1.integer)('campaign_id').references(() => exports.newsletterCampaigns.id, { onDelete: 'cascade' }),
@@ -300,5 +328,26 @@ exports.contactMessagesRelations = (0, drizzle_orm_1.relations)(exports.contactM
     user: one(exports.users, {
         fields: [exports.contactMessages.userId],
         references: [exports.users.id],
+    }),
+}));
+exports.productReviewsRelations = (0, drizzle_orm_1.relations)(exports.productReviews, ({ one, many }) => ({
+    product: one(exports.products, {
+        fields: [exports.productReviews.productId],
+        references: [exports.products.id],
+    }),
+    user: one(exports.users, {
+        fields: [exports.productReviews.userId],
+        references: [exports.users.id],
+    }),
+    order: one(exports.orders, {
+        fields: [exports.productReviews.orderId],
+        references: [exports.orders.id],
+    }),
+    images: many(exports.reviewImages),
+}));
+exports.reviewImagesRelations = (0, drizzle_orm_1.relations)(exports.reviewImages, ({ one }) => ({
+    review: one(exports.productReviews, {
+        fields: [exports.reviewImages.reviewId],
+        references: [exports.productReviews.id],
     }),
 }));
