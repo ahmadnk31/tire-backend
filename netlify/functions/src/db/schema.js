@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.reviewImagesRelations = exports.productReviewsRelations = exports.contactMessagesRelations = exports.wishlistRelations = exports.newsletterCampaignProductsRelations = exports.newsletterCampaignsRelations = exports.systemSettings = exports.productCategoriesRelations = exports.categoriesRelations = exports.cartItemsRelations = exports.orderItemsRelations = exports.ordersRelations = exports.userAddressesRelations = exports.usersRelations = exports.productImagesRelations = exports.productsRelations = exports.productCategories = exports.categories = exports.newsletterCampaignProducts = exports.reviewHelpfulVotes = exports.reviewImages = exports.productReviews = exports.newsletterCampaigns = exports.newsletterSubscriptions = exports.contactMessages = exports.banners = exports.cartItems = exports.orderItems = exports.orders = exports.userAddresses = exports.productImages = exports.products = exports.wishlist = exports.users = void 0;
+exports.blogSubscribers = exports.blogComments = exports.blogPosts = exports.reviewImagesRelations = exports.productReviewsRelations = exports.contactMessagesRelations = exports.wishlistRelations = exports.newsletterCampaignProductsRelations = exports.newsletterCampaignsRelations = exports.systemSettings = exports.productCategoriesRelations = exports.categoriesRelations = exports.cartItemsRelations = exports.orderItemsRelations = exports.ordersRelations = exports.userAddressesRelations = exports.usersRelations = exports.productImagesRelations = exports.productsRelations = exports.productCategories = exports.categories = exports.newsletterCampaignProducts = exports.reviewHelpfulVotes = exports.reviewImages = exports.productReviews = exports.newsletterCampaigns = exports.newsletterSubscriptions = exports.contactMessages = exports.banners = exports.cartItems = exports.orderItems = exports.orders = exports.userAddresses = exports.productImages = exports.products = exports.wishlist = exports.users = void 0;
 const pg_core_1 = require("drizzle-orm/pg-core");
 const drizzle_orm_1 = require("drizzle-orm");
 exports.users = (0, pg_core_1.pgTable)('users', {
@@ -351,3 +351,41 @@ exports.reviewImagesRelations = (0, drizzle_orm_1.relations)(exports.reviewImage
         references: [exports.productReviews.id],
     }),
 }));
+exports.blogPosts = (0, pg_core_1.pgTable)('blog_posts', {
+    id: (0, pg_core_1.serial)('id').primaryKey(),
+    title: (0, pg_core_1.varchar)('title', { length: 255 }).notNull(),
+    slug: (0, pg_core_1.varchar)('slug', { length: 255 }).notNull().unique(),
+    excerpt: (0, pg_core_1.text)('excerpt'),
+    content: (0, pg_core_1.text)('content').notNull(),
+    author: (0, pg_core_1.varchar)('author', { length: 100 }).notNull(),
+    authorId: (0, pg_core_1.integer)('author_id').references(() => exports.users.id),
+    status: (0, pg_core_1.varchar)('status', { length: 20 }).default('draft').notNull(),
+    featured: (0, pg_core_1.boolean)('featured').default(false),
+    category: (0, pg_core_1.varchar)('category', { length: 50 }).notNull(),
+    tags: (0, pg_core_1.text)('tags'),
+    image: (0, pg_core_1.varchar)('image', { length: 500 }),
+    readTime: (0, pg_core_1.varchar)('readTime', { length: 20 }),
+    views: (0, pg_core_1.integer)('views').default(0),
+    publishedAt: (0, pg_core_1.timestamp)('published_at'),
+    createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow().notNull(),
+    updatedAt: (0, pg_core_1.timestamp)('updated_at').defaultNow().notNull(),
+});
+exports.blogComments = (0, pg_core_1.pgTable)('blog_comments', {
+    id: (0, pg_core_1.serial)('id').primaryKey(),
+    postId: (0, pg_core_1.integer)('post_id').references(() => exports.blogPosts.id, { onDelete: 'cascade' }).notNull(),
+    userId: (0, pg_core_1.integer)('user_id').references(() => exports.users.id, { onDelete: 'cascade' }),
+    authorName: (0, pg_core_1.varchar)('author_name', { length: 100 }),
+    authorEmail: (0, pg_core_1.varchar)('author_email', { length: 255 }),
+    content: (0, pg_core_1.text)('content').notNull(),
+    status: (0, pg_core_1.varchar)('status', { length: 20 }).default('pending').notNull(),
+    createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow().notNull(),
+    updatedAt: (0, pg_core_1.timestamp)('updated_at').defaultNow().notNull(),
+});
+exports.blogSubscribers = (0, pg_core_1.pgTable)('blog_subscribers', {
+    id: (0, pg_core_1.serial)('id').primaryKey(),
+    email: (0, pg_core_1.varchar)('email', { length: 255 }).notNull().unique(),
+    name: (0, pg_core_1.varchar)('name', { length: 100 }),
+    status: (0, pg_core_1.varchar)('status', { length: 20 }).default('active').notNull(),
+    subscribedAt: (0, pg_core_1.timestamp)('subscribed_at').defaultNow().notNull(),
+    unsubscribedAt: (0, pg_core_1.timestamp)('unsubscribed_at'),
+});

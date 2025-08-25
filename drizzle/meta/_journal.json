@@ -50,6 +50,13 @@
       "when": 1756026859734,
       "tag": "0006_organic_namor",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1756103319277,
+      "tag": "0007_perpetual_thundra",
+      "breakpoints": true
     }
   ]
 }

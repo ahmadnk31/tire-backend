@@ -76,6 +76,7 @@ try {
   const stripeWebhookRouter = require('../../dist/src/routes/stripe-webhook');
   const contactRouter = require('../../dist/src/routes/contact');
   const reviewsRouter = require('../../dist/src/routes/reviews');
+  const blogRouter = require('../../dist/src/routes/blog');
 
   // Mount webhook BEFORE other routes (needs raw body)
   app.use('/api', stripeWebhookRouter.default || stripeWebhookRouter);
@@ -92,6 +93,7 @@ try {
   app.use('/api/account', accountRouter.default || accountRouter);
   app.use('/api/wishlist', wishlistRouter.default || wishlistRouter);
   app.use('/api/reviews', reviewsRouter.default || reviewsRouter);
+  app.use('/api/blog', blogRouter.default || blogRouter);
   app.use('/api/banners', bannersRouter.default || bannersRouter);
   app.use('/api/settings', settingsRouter.default || settingsRouter);
   app.use('/api/bulk', bulkRouter.default || bulkRouter);

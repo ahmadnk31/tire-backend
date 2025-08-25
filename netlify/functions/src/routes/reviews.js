@@ -269,14 +269,6 @@ router.post('/', auth_1.requireAuth, async (req, res) => {
             return res.status(404).json({ error: 'Product not found' });
         }
         console.log('✅ [REVIEWS API] Product found:', product[0].name);
-        const existingReview = await db_1.db
-            .select()
-            .from(schema_1.productReviews)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.productReviews.productId, productId), (0, drizzle_orm_1.eq)(schema_1.productReviews.userId, userId)))
-            .limit(1);
-        if (existingReview.length > 0) {
-            return res.status(400).json({ error: 'You have already reviewed this product' });
-        }
         let isVerifiedPurchase = false;
         if (orderId) {
             const order = await db_1.db
@@ -578,8 +570,23 @@ router.get('/admin/all', auth_1.requireAuth, auth_1.requireAdmin, async (req, re
             .from(schema_1.productReviews)
             .where(whereConditions.length > 0 ? (0, drizzle_orm_1.and)(...whereConditions) : undefined);
         console.log('🔍 [REVIEWS API] All reviews raw data:', allReviews);
+        const groupedReviews = allReviews.reduce((acc, review) => {
+            const existingReview = acc.find(r => r.id === review.id);
+            if (existingReview) {
+                if (review.images) {
+                    existingReview.images.push(review.images);
+                }
+            }
+            else {
+                acc.push({
+                    ...review,
+                    images: review.images ? [review.images] : [],
+                });
+            }
+            return acc;
+        }, []);
         res.json({
-            reviews: allReviews,
+            reviews: groupedReviews,
             pagination: {
                 page: Number(page),
                 limit: Number(limit),
@@ -633,8 +640,23 @@ router.get('/admin/pending', auth_1.requireAuth, auth_1.requireAdmin, async (req
             .from(schema_1.productReviews)
             .where((0, drizzle_orm_1.eq)(schema_1.productReviews.status, 'pending'));
         console.log('🔍 [REVIEWS API] Pending reviews raw data:', pendingReviews);
+        const groupedPendingReviews = pendingReviews.reduce((acc, review) => {
+            const existingReview = acc.find(r => r.id === review.id);
+            if (existingReview) {
+                if (review.images) {
+                    existingReview.images.push(review.images);
+                }
+            }
+            else {
+                acc.push({
+                    ...review,
+                    images: review.images ? [review.images] : [],
+                });
+            }
+            return acc;
+        }, []);
         res.json({
-            reviews: pendingReviews,
+            reviews: groupedPendingReviews,
             pagination: {
                 page: Number(page),
                 limit: Number(limit),

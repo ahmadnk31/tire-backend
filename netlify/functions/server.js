@@ -118,6 +118,7 @@ const bulk_1 = __importDefault(require("./src/routes/bulk"));
 const contact_1 = __importDefault(require("./src/routes/contact"));
 const test_1 = __importDefault(require("./src/routes/test"));
 const reviews_1 = __importDefault(require("./src/routes/reviews"));
+const blog_1 = __importDefault(require("./src/routes/blog"));
 app.use('/api/auth', auth_1.default);
 app.use('/api/admin', admin_1.default);
 app.use('/api/products', products_1.default);
@@ -134,6 +135,8 @@ app.use('/api/bulk', bulk_1.default);
 app.use('/api/contact', contact_1.default);
 app.use('/api/test', test_1.default);
 app.use('/api/reviews', reviews_1.default);
+app.use('/api/wishlist', wishlist_1.default);
+app.use('/api/blog', blog_1.default);
 console.log('✅ [SERVER] Reviews router registered at /api/reviews');
 app.use('/api/stripe', stripe_1.default);
 app.get('/health', (req, res) => {

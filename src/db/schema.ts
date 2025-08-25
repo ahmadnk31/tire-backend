@@ -412,3 +412,45 @@ export const reviewImagesRelations = relations(reviewImages, ({ one }) => ({
     references: [productReviews.id],
   }),
 }));
+
+// Blog tables
+export const blogPosts = pgTable('blog_posts', {
+  id: serial('id').primaryKey(),
+  title: varchar('title', { length: 255 }).notNull(),
+  slug: varchar('slug', { length: 255 }).notNull().unique(),
+  excerpt: text('excerpt'),
+  content: text('content').notNull(),
+  author: varchar('author', { length: 100 }).notNull(),
+  authorId: integer('author_id').references(() => users.id),
+  status: varchar('status', { length: 20 }).default('draft').notNull(), // draft, published, archived
+  featured: boolean('featured').default(false),
+  category: varchar('category', { length: 50 }).notNull(),
+  tags: text('tags'), // JSON array of tags
+  image: varchar('image', { length: 500 }),
+  readTime: varchar('readTime', { length: 20 }),
+  views: integer('views').default(0),
+  publishedAt: timestamp('published_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const blogComments = pgTable('blog_comments', {
+  id: serial('id').primaryKey(),
+  postId: integer('post_id').references(() => blogPosts.id, { onDelete: 'cascade' }).notNull(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  authorName: varchar('author_name', { length: 100 }),
+  authorEmail: varchar('author_email', { length: 255 }),
+  content: text('content').notNull(),
+  status: varchar('status', { length: 20 }).default('pending').notNull(), // pending, approved, spam
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const blogSubscribers = pgTable('blog_subscribers', {
+  id: serial('id').primaryKey(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  name: varchar('name', { length: 100 }),
+  status: varchar('status', { length: 20 }).default('active').notNull(), // active, unsubscribed
+  subscribedAt: timestamp('subscribed_at').defaultNow().notNull(),
+  unsubscribedAt: timestamp('unsubscribed_at'),
+});
