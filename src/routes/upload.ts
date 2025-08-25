@@ -99,43 +99,111 @@ router.post('/multiple', upload.array('images', 10), async (req: Request, res: R
     }
 
     const folder = req.body.folder || 'products';
-    const files = req.files as Express.Multer.File[];
-    
-    console.log('📋 Files details:', files.map(f => ({
-      originalname: f.originalname,
-      mimetype: f.mimetype,
-      size: f.size
-    })));
-    
-    const uploadParams = files.map(file => ({
-      file: file.buffer,
-      filename: file.originalname,
-      mimetype: file.mimetype,
-      folder
-    }));
-    
-    const imageUrls = await s3Service.uploadMultipleFiles(uploadParams);
+    const uploadPromises = req.files.map(async (file) => {
+      const imageUrl = await s3Service.uploadFile({
+        file: file.buffer,
+        filename: file.originalname,
+        mimetype: file.mimetype,
+        folder
+      });
+      
+      return {
+        imageUrl,
+        originalName: file.originalname,
+        size: file.size
+      };
+    });
 
-    console.log('✅ Multiple upload successful:', { count: imageUrls.length });
+    const results = await Promise.all(uploadPromises);
+
+    console.log('✅ Multiple upload successful:', { resultsCount: results.length });
 
     res.json({
       success: true,
-      message: `${imageUrls.length} files uploaded successfully`,
-      results: imageUrls.map((imageUrl, index) => ({
-        imageUrl,
-        originalName: files[index].originalname,
-        size: files[index].size
-      }))
+      message: `${results.length} files uploaded successfully`,
+      files: results
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('❌ Multiple upload error:', {
       error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
+      hasFiles: !!req.files,
       filesCount: Array.isArray(req.files) ? req.files.length : 0
     });
     res.status(500).json({ 
       error: 'Failed to upload files',
+      details: errorMessage
+    });
+  }
+});
+
+// Upload single video
+router.post('/video', upload.single('video'), async (req: Request, res: Response) => {
+  try {
+    addCorsHeaders(res);
+    
+    console.log('📤 Video upload request received:', {
+      hasFile: !!req.file,
+      bodyFolder: req.body?.folder,
+      headers: req.headers['content-type'],
+      origin: req.headers.origin,
+      userAgent: req.headers['user-agent']
+    });
+
+    if (!req.file) {
+      console.log('❌ No video file in request');
+      return res.status(400).json({ error: 'No video file uploaded' });
+    }
+
+    // Validate video file type
+    const allowedVideoTypes = ['video/mp4', 'video/mov', 'video/avi', 'video/webm', 'video/mkv'];
+    if (!allowedVideoTypes.includes(req.file.mimetype)) {
+      console.log('❌ Invalid video file type:', req.file.mimetype);
+      return res.status(400).json({ error: 'Invalid video file type. Supported formats: MP4, MOV, AVI, WEBM, MKV' });
+    }
+
+    // Validate file size (100MB limit)
+    const maxSize = 100 * 1024 * 1024; // 100MB
+    if (req.file.size > maxSize) {
+      console.log('❌ Video file too large:', req.file.size);
+      return res.status(400).json({ error: 'Video file too large. Maximum size: 100MB' });
+    }
+
+    console.log('📋 Video file details:', {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      hasBuffer: !!req.file.buffer
+    });
+
+    const folder = req.body.folder || 'videos';
+    const videoUrl = await s3Service.uploadFile({
+      file: req.file.buffer,
+      filename: req.file.originalname,
+      mimetype: req.file.mimetype,
+      folder
+    });
+
+    console.log('✅ Video upload successful:', { videoUrl });
+
+    res.json({
+      success: true,
+      message: 'Video uploaded successfully',
+      videoUrl,
+      originalName: req.file.originalname,
+      size: req.file.size
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ Video upload error:', {
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+      hasFile: !!req.file,
+      hasS3Service: !!s3Service
+    });
+    res.status(500).json({ 
+      error: 'Failed to upload video',
       details: errorMessage
     });
   }
