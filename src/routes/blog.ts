@@ -51,6 +51,16 @@ router.get('/', async (req, res) => {
       whereConditions.push(eq(blogPosts.featured, true));
     }
     
+    console.log('🔍 Fetching blog posts with conditions:', {
+      status: 'published',
+      category,
+      search,
+      featured,
+      page,
+      limit,
+      offset
+    });
+    
     // Get posts
     const posts = await db
       .select()
@@ -60,6 +70,8 @@ router.get('/', async (req, res) => {
       .limit(limit)
       .offset(offset);
     
+    console.log('📝 Found blog posts:', posts.length);
+    
     // Get total count
     const totalResult = await db
       .select({ count: sql<number>`count(*)` })
@@ -68,6 +80,8 @@ router.get('/', async (req, res) => {
     
     const total = totalResult[0].count;
     const totalPages = Math.ceil(total / limit);
+    
+    console.log('📊 Blog posts stats:', { total, totalPages, currentPage: page });
     
     // Parse tags for each post
     const postsWithParsedTags = posts.map(post => ({
@@ -163,12 +177,6 @@ router.get('/:slug', async (req, res) => {
       return res.status(404).json({ error: 'Blog post not found' });
     }
     
-    // Increment views
-    await db
-      .update(blogPosts)
-      .set({ views: sql`${blogPosts.views} + 1` })
-      .where(eq(blogPosts.id, post[0].id));
-    
     // Get comments for this post
     const comments = await db
       .select()
@@ -186,6 +194,34 @@ router.get('/:slug', async (req, res) => {
   } catch (error) {
     console.error('Error fetching blog post:', error);
     res.status(500).json({ error: 'Failed to fetch blog post' });
+  }
+});
+
+// POST /api/blog/:slug/view - Increment view count (called once per visit)
+router.post('/:slug/view', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    
+    const post = await db
+      .select()
+      .from(blogPosts)
+      .where(and(eq(blogPosts.slug, slug), eq(blogPosts.status, 'published')))
+      .limit(1);
+    
+    if (post.length === 0) {
+      return res.status(404).json({ error: 'Blog post not found' });
+    }
+    
+    // Increment views
+    await db
+      .update(blogPosts)
+      .set({ views: sql`${blogPosts.views} + 1` })
+      .where(eq(blogPosts.id, post[0].id));
+    
+    res.json({ success: true, views: (post[0].views || 0) + 1 });
+  } catch (error) {
+    console.error('Error incrementing view count:', error);
+    res.status(500).json({ error: 'Failed to increment view count' });
   }
 });
 
@@ -343,7 +379,7 @@ router.get('/admin/posts', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // POST /api/blog/admin/posts - Create new blog post (admin)
-router.post('/admin/posts', requireAuth, requireAdmin, upload.single('image'), handleMulterError, async (req: any, res: any) => {
+router.post('/admin/posts', requireAuth, requireAdmin, async (req: any, res: any) => {
   try {
     const {
       title,
@@ -353,31 +389,25 @@ router.post('/admin/posts', requireAuth, requireAdmin, upload.single('image'), h
       tags,
       featured,
       status,
-      readTime
+      readTime,
+      image
     } = req.body;
     
+    console.log('📝 Creating blog post:', {
+      title,
+      category,
+      status,
+      featured,
+      hasContent: !!content,
+      hasImage: !!image
+    });
+    
     if (!title || !content || !category) {
+      console.log('❌ Missing required fields:', { title: !!title, content: !!content, category: !!category });
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
     const slug = generateSlug(title);
-    
-    // Handle image upload
-    let imageUrl = null;
-    if (req.file) {
-      try {
-        const uploadResult = await s3Service.uploadFile({
-          file: req.file.buffer,
-          filename: req.file.originalname,
-          mimetype: req.file.mimetype,
-          folder: 'blog'
-        });
-        imageUrl = uploadResult;
-      } catch (uploadError) {
-        console.error('Image upload failed:', uploadError);
-        return res.status(500).json({ error: 'Failed to upload image' });
-      }
-    }
     
     const newPost = await db
       .insert(blogPosts)
@@ -393,20 +423,27 @@ router.post('/admin/posts', requireAuth, requireAdmin, upload.single('image'), h
         featured: featured === 'true',
         status,
         readTime,
-        image: imageUrl,
+        image: image || null,
         publishedAt: status === 'published' ? new Date() : null
       })
       .returning();
     
+    console.log('✅ Blog post created successfully:', {
+      id: newPost[0].id,
+      title: newPost[0].title,
+      status: newPost[0].status,
+      slug: newPost[0].slug
+    });
+    
     res.status(201).json({ post: newPost[0] });
   } catch (error) {
-    console.error('Error creating blog post:', error);
+    console.error('❌ Error creating blog post:', error);
     res.status(500).json({ error: 'Failed to create blog post' });
   }
 });
 
 // PUT /api/blog/admin/posts/:id - Update blog post (admin)
-router.put('/admin/posts/:id', requireAuth, requireAdmin, upload.single('image'), handleMulterError, async (req: any, res: any) => {
+router.put('/admin/posts/:id', requireAuth, requireAdmin, async (req: any, res: any) => {
   try {
     const { id } = req.params;
     const {
@@ -417,7 +454,8 @@ router.put('/admin/posts/:id', requireAuth, requireAdmin, upload.single('image')
       tags,
       featured,
       status,
-      readTime
+      readTime,
+      image
     } = req.body;
     
     if (!title || !content || !category) {
@@ -425,23 +463,6 @@ router.put('/admin/posts/:id', requireAuth, requireAdmin, upload.single('image')
     }
     
     const slug = generateSlug(title);
-    
-    // Handle image upload
-    let imageUrl = null;
-    if (req.file) {
-      try {
-        const uploadResult = await s3Service.uploadFile({
-          file: req.file.buffer,
-          filename: req.file.originalname,
-          mimetype: req.file.mimetype,
-          folder: 'blog'
-        });
-        imageUrl = uploadResult;
-      } catch (uploadError) {
-        console.error('Image upload failed:', uploadError);
-        return res.status(500).json({ error: 'Failed to upload image' });
-      }
-    }
     
     const updateData: any = {
       title,
@@ -453,12 +474,9 @@ router.put('/admin/posts/:id', requireAuth, requireAdmin, upload.single('image')
       featured: featured === 'true',
       status,
       readTime,
+      image: image || null,
       updatedAt: new Date()
     };
-    
-    if (imageUrl) {
-      updateData.image = imageUrl;
-    }
     
     if (status === 'published') {
       updateData.publishedAt = new Date();

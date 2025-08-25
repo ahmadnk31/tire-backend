@@ -8,7 +8,6 @@ const db_1 = require("../db");
 const schema_1 = require("../db/schema");
 const drizzle_orm_1 = require("drizzle-orm");
 const auth_1 = require("../middleware/auth");
-const upload_1 = require("../middleware/upload");
 const s3Service_1 = __importDefault(require("../services/s3Service"));
 const router = express_1.default.Router();
 const s3Service = new s3Service_1.default();
@@ -38,6 +37,15 @@ router.get('/', async (req, res) => {
         if (featured) {
             whereConditions.push((0, drizzle_orm_1.eq)(schema_1.blogPosts.featured, true));
         }
+        console.log('🔍 Fetching blog posts with conditions:', {
+            status: 'published',
+            category,
+            search,
+            featured,
+            page,
+            limit,
+            offset
+        });
         const posts = await db_1.db
             .select()
             .from(schema_1.blogPosts)
@@ -45,12 +53,14 @@ router.get('/', async (req, res) => {
             .orderBy((0, drizzle_orm_1.desc)(schema_1.blogPosts.publishedAt), (0, drizzle_orm_1.desc)(schema_1.blogPosts.createdAt))
             .limit(limit)
             .offset(offset);
+        console.log('📝 Found blog posts:', posts.length);
         const totalResult = await db_1.db
             .select({ count: (0, drizzle_orm_1.sql) `count(*)` })
             .from(schema_1.blogPosts)
             .where((0, drizzle_orm_1.and)(...whereConditions));
         const total = totalResult[0].count;
         const totalPages = Math.ceil(total / limit);
+        console.log('📊 Blog posts stats:', { total, totalPages, currentPage: page });
         const postsWithParsedTags = posts.map(post => ({
             ...post,
             tags: post.tags ? JSON.parse(post.tags) : []
@@ -131,10 +141,6 @@ router.get('/:slug', async (req, res) => {
         if (post.length === 0) {
             return res.status(404).json({ error: 'Blog post not found' });
         }
-        await db_1.db
-            .update(schema_1.blogPosts)
-            .set({ views: (0, drizzle_orm_1.sql) `${schema_1.blogPosts.views} + 1` })
-            .where((0, drizzle_orm_1.eq)(schema_1.blogPosts.id, post[0].id));
         const comments = await db_1.db
             .select()
             .from(schema_1.blogComments)
@@ -150,6 +156,28 @@ router.get('/:slug', async (req, res) => {
     catch (error) {
         console.error('Error fetching blog post:', error);
         res.status(500).json({ error: 'Failed to fetch blog post' });
+    }
+});
+router.post('/:slug/view', async (req, res) => {
+    try {
+        const { slug } = req.params;
+        const post = await db_1.db
+            .select()
+            .from(schema_1.blogPosts)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.blogPosts.slug, slug), (0, drizzle_orm_1.eq)(schema_1.blogPosts.status, 'published')))
+            .limit(1);
+        if (post.length === 0) {
+            return res.status(404).json({ error: 'Blog post not found' });
+        }
+        await db_1.db
+            .update(schema_1.blogPosts)
+            .set({ views: (0, drizzle_orm_1.sql) `${schema_1.blogPosts.views} + 1` })
+            .where((0, drizzle_orm_1.eq)(schema_1.blogPosts.id, post[0].id));
+        res.json({ success: true, views: (post[0].views || 0) + 1 });
+    }
+    catch (error) {
+        console.error('Error incrementing view count:', error);
+        res.status(500).json({ error: 'Failed to increment view count' });
     }
 });
 router.post('/:postId/comments', async (req, res) => {
@@ -280,29 +308,22 @@ router.get('/admin/posts', auth_1.requireAuth, auth_1.requireAdmin, async (req, 
         res.status(500).json({ error: 'Failed to fetch posts' });
     }
 });
-router.post('/admin/posts', auth_1.requireAuth, auth_1.requireAdmin, upload_1.upload.single('image'), upload_1.handleMulterError, async (req, res) => {
+router.post('/admin/posts', auth_1.requireAuth, auth_1.requireAdmin, async (req, res) => {
     try {
-        const { title, excerpt, content, category, tags, featured, status, readTime } = req.body;
+        const { title, excerpt, content, category, tags, featured, status, readTime, image } = req.body;
+        console.log('📝 Creating blog post:', {
+            title,
+            category,
+            status,
+            featured,
+            hasContent: !!content,
+            hasImage: !!image
+        });
         if (!title || !content || !category) {
+            console.log('❌ Missing required fields:', { title: !!title, content: !!content, category: !!category });
             return res.status(400).json({ error: 'Missing required fields' });
         }
         const slug = generateSlug(title);
-        let imageUrl = null;
-        if (req.file) {
-            try {
-                const uploadResult = await s3Service.uploadFile({
-                    file: req.file.buffer,
-                    filename: req.file.originalname,
-                    mimetype: req.file.mimetype,
-                    folder: 'blog'
-                });
-                imageUrl = uploadResult;
-            }
-            catch (uploadError) {
-                console.error('Image upload failed:', uploadError);
-                return res.status(500).json({ error: 'Failed to upload image' });
-            }
-        }
         const newPost = await db_1.db
             .insert(schema_1.blogPosts)
             .values({
@@ -317,41 +338,31 @@ router.post('/admin/posts', auth_1.requireAuth, auth_1.requireAdmin, upload_1.up
             featured: featured === 'true',
             status,
             readTime,
-            image: imageUrl,
+            image: image || null,
             publishedAt: status === 'published' ? new Date() : null
         })
             .returning();
+        console.log('✅ Blog post created successfully:', {
+            id: newPost[0].id,
+            title: newPost[0].title,
+            status: newPost[0].status,
+            slug: newPost[0].slug
+        });
         res.status(201).json({ post: newPost[0] });
     }
     catch (error) {
-        console.error('Error creating blog post:', error);
+        console.error('❌ Error creating blog post:', error);
         res.status(500).json({ error: 'Failed to create blog post' });
     }
 });
-router.put('/admin/posts/:id', auth_1.requireAuth, auth_1.requireAdmin, upload_1.upload.single('image'), upload_1.handleMulterError, async (req, res) => {
+router.put('/admin/posts/:id', auth_1.requireAuth, auth_1.requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        const { title, excerpt, content, category, tags, featured, status, readTime } = req.body;
+        const { title, excerpt, content, category, tags, featured, status, readTime, image } = req.body;
         if (!title || !content || !category) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
         const slug = generateSlug(title);
-        let imageUrl = null;
-        if (req.file) {
-            try {
-                const uploadResult = await s3Service.uploadFile({
-                    file: req.file.buffer,
-                    filename: req.file.originalname,
-                    mimetype: req.file.mimetype,
-                    folder: 'blog'
-                });
-                imageUrl = uploadResult;
-            }
-            catch (uploadError) {
-                console.error('Image upload failed:', uploadError);
-                return res.status(500).json({ error: 'Failed to upload image' });
-            }
-        }
         const updateData = {
             title,
             slug,
@@ -362,11 +373,9 @@ router.put('/admin/posts/:id', auth_1.requireAuth, auth_1.requireAdmin, upload_1
             featured: featured === 'true',
             status,
             readTime,
+            image: image || null,
             updatedAt: new Date()
         };
-        if (imageUrl) {
-            updateData.image = imageUrl;
-        }
         if (status === 'published') {
             updateData.publishedAt = new Date();
         }
