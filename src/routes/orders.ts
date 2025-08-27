@@ -73,6 +73,12 @@ router.get('/', requireAuth, paginationValidation, handleValidationErrors, async
       return res.status(401).json({ error: 'Unauthorized' });
     }
     
+    console.log('🔍 [Orders API] Requesting user:', {
+      id: requestingUser.id,
+      email: requestingUser.email,
+      role: requestingUser.role
+    });
+    
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const offset = (pageNum - 1) * limitNum;
@@ -83,9 +89,13 @@ router.get('/', requireAuth, paginationValidation, handleValidationErrors, async
     // If not admin, only show user's own orders
     if (requestingUser.role !== 'admin') {
       conditions.push(eq(orders.userId, requestingUser.id));
+      console.log('🔍 [Orders API] Filtering by user ID:', requestingUser.id);
     } else if (userId) {
       // Admin can filter by specific user
       conditions.push(eq(orders.userId, parseInt(userId)));
+      console.log('🔍 [Orders API] Admin filtering by specific user ID:', userId);
+    } else {
+      console.log('🔍 [Orders API] Admin viewing all orders');
     }
 
     if (status && status !== 'all') {
