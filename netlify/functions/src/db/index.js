@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.db = void 0;
+exports.pool = exports.db = void 0;
 const node_postgres_1 = require("drizzle-orm/node-postgres");
 const pg_1 = require("pg");
 const schema = __importStar(require("./schema"));
@@ -44,6 +44,7 @@ const pool = new pg_1.Pool({
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
 });
+exports.pool = pool;
 pool.on('error', (err) => {
     console.error('Unexpected error on idle client', err);
     process.exit(-1);

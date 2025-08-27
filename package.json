@@ -14,6 +14,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
+    "init:rate-limits": "ts-node scripts/init-rate-limits.ts",
+    "test:rate-limits": "ts-node scripts/test-rate-limits.ts",
+    "migrate:add-slug": "ts-node scripts/simple-migration.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -46,6 +49,7 @@
     "morgan": "^1.10.0",
     "multer": "^2.0.2",
     "multer-s3": "^3.0.1",
+    "node-fetch": "^2.7.0",
     "pg": "^8.16.3",
     "serverless-http": "^3.2.0",
     "stripe": "^18.4.0",
@@ -62,6 +66,7 @@
     "@types/morgan": "^1.9.10",
     "@types/multer": "^2.0.0",
     "@types/node": "^24.1.0",
+    "@types/node-fetch": "^2.6.13",
     "@types/pg": "^8.15.4",
     "@types/stripe": "^8.0.416",
     "@types/uuid": "^10.0.0",

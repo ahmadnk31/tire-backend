@@ -8,6 +8,7 @@ import { eq, and, like, ilike, gte, lte, desc, asc, or, count, SQL, inArray, ne 
 import { db } from '../db';
 import { products, productImages, productCategories, categories } from '../db/schema';
 import Fuse from 'fuse.js';
+import { generateProductSlug } from '../utils/slugGenerator';
 
 // Import security middleware
 import { requireAuth, requireAdmin } from '../middleware/auth';
@@ -54,14 +55,13 @@ router.get('/search', searchValidation, handleValidationErrors, async (req: expr
         status: products.status,
         featured: products.featured,
         sku: products.sku,
+        slug: products.slug,
         description: products.description,
         features: products.features,
         specifications: products.specifications,
         tags: products.tags,
         // Tire-specific fields
-        tireWidth: products.tireWidth,
-        aspectRatio: products.aspectRatio,
-        rimDiameter: products.rimDiameter,
+        
         loadIndex: products.loadIndex,
         speedRating: products.speedRating,
         seasonType: products.seasonType,
@@ -637,17 +637,17 @@ router.get('/categories/:category', async (req: express.Request, res: express.Re
       status: products.status,
       featured: products.featured,
       sku: products.sku,
+      slug: products.slug,
       description: products.description,
       features: products.features,
       specifications: products.specifications,
       tags: products.tags,
-      tireWidth: products.tireWidth,
-      aspectRatio: products.aspectRatio,
-      rimDiameter: products.rimDiameter,
+      
       loadIndex: products.loadIndex,
       speedRating: products.speedRating,
       seasonType: products.seasonType,
       tireType: products.tireType,
+      tireSoundVolume: products.tireSoundVolume,
       createdAt: products.createdAt,
       updatedAt: products.updatedAt,
       // Image info
@@ -687,6 +687,7 @@ router.get('/categories/:category', async (req: express.Request, res: express.Re
           status: row.status,
           featured: row.featured,
           sku: row.sku,
+          slug: row.slug,
           description: row.description,
           features: row.features,
           specifications: row.specifications,
@@ -698,6 +699,7 @@ router.get('/categories/:category', async (req: express.Request, res: express.Re
           speedRating: row.speedRating,
           seasonType: row.seasonType,
           tireType: row.tireType,
+          tireSoundVolume: row.tireSoundVolume,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
           images: row.imageUrl ? [{
@@ -811,6 +813,93 @@ router.get('/new-arrivals', paginationValidation, handleValidationErrors, async 
   }
 });
 
+// GET /api/products/slug/:slug - Get product by slug
+router.get('/slug/:slug', async (req: express.Request, res: express.Response) => {
+  try {
+    const { slug } = req.params;
+    
+    const product = await db
+      .select({
+        // Product fields
+        id: products.id,
+        name: products.name,
+        brand: products.brand,
+        model: products.model,
+        size: products.size,
+        price: products.price,
+        comparePrice: products.comparePrice,
+        stock: products.stock,
+        lowStockThreshold: products.lowStockThreshold,
+        status: products.status,
+        featured: products.featured,
+        sku: products.sku,
+        slug: products.slug,
+        description: products.description,
+        features: products.features,
+        specifications: products.specifications,
+        tags: products.tags,
+        // Tire-specific fields
+        
+        loadIndex: products.loadIndex,
+        speedRating: products.speedRating,
+        seasonType: products.seasonType,
+        tireType: products.tireType,
+        treadDepth: products.treadDepth,
+        construction: products.construction,
+        tireSoundVolume: products.tireSoundVolume,
+        // SEO fields
+        seoTitle: products.seoTitle,
+        seoDescription: products.seoDescription,
+        // Timestamps
+        createdAt: products.createdAt,
+        updatedAt: products.updatedAt,
+      })
+      .from(products)
+      .where(eq(products.slug, slug))
+      .limit(1);
+
+    if (product.length === 0) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    // Get product images
+    const images = await db
+      .select({
+        id: productImages.id,
+        imageUrl: productImages.imageUrl,
+        altText: productImages.altText,
+        isPrimary: productImages.isPrimary,
+        sortOrder: productImages.sortOrder,
+      })
+      .from(productImages)
+      .where(eq(productImages.productId, product[0].id))
+      .orderBy(asc(productImages.sortOrder), asc(productImages.id));
+
+    // Get product categories
+    const categoriesForProduct = await db
+      .select({
+        categoryId: categories.id,
+        categoryName: categories.name,
+        categorySlug: categories.slug,
+        categoryDescription: categories.description,
+      })
+      .from(categories)
+      .innerJoin(productCategories, eq(categories.id, productCategories.categoryId))
+      .where(eq(productCategories.productId, product[0].id));
+
+    const result = {
+      ...product[0],
+      images: images,
+      categories: categoriesForProduct,
+    };
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching product by slug:', error);
+    res.status(500).json({ error: 'Failed to fetch product' });
+  }
+});
+
 // GET /api/products/:id - Get single product
 // Get a single product by ID
 router.get('/:id', idParamValidation, handleValidationErrors, async (req: express.Request, res: express.Response) => {
@@ -855,7 +944,8 @@ router.get('/:id', idParamValidation, handleValidationErrors, async (req: expres
           seoDescription: result[0].seoDescription || '',
           isOnSale,
           saleStartDate: result[0].saleStartDate,
-          saleEndDate: result[0].saleEndDate
+          saleEndDate: result[0].saleEndDate,
+          tireSoundVolume: result[0].tireSoundVolume || null
         };
         res.json(product);
   } catch (error) {
@@ -886,6 +976,7 @@ router.post('/', requireAuth, requireAdmin, productValidation, handleValidationE
       status = 'draft',
       featured = false,
       sku,
+      slug,
       description,
       features,
       specifications,
@@ -900,6 +991,7 @@ router.post('/', requireAuth, requireAdmin, productValidation, handleValidationE
       tireType,
       treadDepth,
       construction,
+      tireSoundVolume,
       // Sale fields
       saleStartDate,
       saleEndDate,
@@ -922,6 +1014,17 @@ router.post('/', requireAuth, requireAdmin, productValidation, handleValidationE
       finalSize = `${tireWidth}/${aspectRatio}R${rimDiameter}`;
     }
 
+    // Generate slug if not provided
+    let finalSlug = slug;
+    if (!finalSlug) {
+      // Get existing slugs to avoid conflicts
+      const existingProducts = await db.select({ slug: products.slug }).from(products);
+      const existingSlugs = existingProducts
+        .map(p => p.slug)
+        .filter((slug): slug is string => slug !== null);
+      finalSlug = generateProductSlug(brand, name, finalSize, existingSlugs);
+    }
+
     const insertData = {
       name,
       brand,
@@ -934,6 +1037,7 @@ router.post('/', requireAuth, requireAdmin, productValidation, handleValidationE
       status,
       featured,
       sku: finalSku,
+      slug: finalSlug,
       description,
       features,
       specifications,
@@ -948,6 +1052,7 @@ router.post('/', requireAuth, requireAdmin, productValidation, handleValidationE
       tireType: tireType || null,
       treadDepth: treadDepth || null,
       construction: construction || null,
+      tireSoundVolume: tireSoundVolume || null,
       // Sale fields
       saleStartDate: saleStartDate ? new Date(saleStartDate) : null,
       saleEndDate: saleEndDate ? new Date(saleEndDate) : null,
@@ -1047,6 +1152,8 @@ router.put('/:id', requireAuth, requireAdmin, idParamValidation, productValidati
       size: providedSize,
       price,
       comparePrice,
+      slug,
+      tireSoundVolume,
       ...otherData
     } = req.body;
     
@@ -1076,11 +1183,29 @@ router.put('/:id', requireAuth, requireAdmin, idParamValidation, productValidati
       }
     }
 
+    // Check for slug uniqueness if slug is being updated
+    if (slug) {
+      const existingProduct = await db.select()
+        .from(products)
+        .where(and(
+          eq(products.slug, slug),
+          ne(products.id, productId)
+        ));
+      
+      if (existingProduct.length > 0) {
+        return res.status(400).json({ 
+          error: 'Slug already exists', 
+          details: `Slug "${slug}" is already used by another product` 
+        });
+      }
+    }
+
     const updateData = {
       ...otherData,
       size: finalSize,
       price: price ? price.toString() : undefined,
       comparePrice: comparePrice ? comparePrice.toString() : null,
+      slug: slug || undefined,
       // Tire-specific fields
       tireWidth: tireWidth || null,
       aspectRatio: aspectRatio || null,
@@ -1091,6 +1216,7 @@ router.put('/:id', requireAuth, requireAdmin, idParamValidation, productValidati
       tireType: otherData.tireType || null,
       treadDepth: otherData.treadDepth || null,
       construction: otherData.construction || null,
+      tireSoundVolume: tireSoundVolume || null,
       // Sale fields
       saleStartDate: otherData.saleStartDate ? new Date(otherData.saleStartDate) : null,
       saleEndDate: otherData.saleEndDate ? new Date(otherData.saleEndDate) : null,

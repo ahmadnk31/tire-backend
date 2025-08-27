@@ -22,6 +22,14 @@ import {
   speedLimiter,
   requestSizeLimiter 
 } from './src/middleware/rateLimiting';
+import {
+  dynamicGeneralRateLimit,
+  dynamicAuthRateLimit,
+  dynamicPaymentRateLimit,
+  dynamicUploadRateLimit,
+  dynamicSpeedLimiter,
+  refreshRateLimiters
+} from './src/middleware/dynamicRateLimiting';
 import { getSecurityHeaders, getClientIP, maskSensitiveData } from './src/utils/security';
 import { sanitizeHtml } from './src/middleware/validation';
 
@@ -93,17 +101,17 @@ app.use(morgan('combined', {
   }
 }));
 
-// Apply rate limiting
-app.use('/api/auth', authRateLimit);
-app.use('/api/stripe', paymentRateLimit);
-app.use('/api/upload', uploadRateLimit);
+// Apply dynamic rate limiting (uses database settings)
+app.use('/api/auth', dynamicAuthRateLimit);
+app.use('/api/stripe', dynamicPaymentRateLimit);
+app.use('/api/upload', dynamicUploadRateLimit);
 // Admin routes should bypass general rate limiting
 app.use('/api/admin', (req, res, next) => {
   // Skip rate limiting for admin routes
   next();
 });
-app.use('/api', generalRateLimit);
-app.use(speedLimiter);
+app.use('/api', dynamicGeneralRateLimit);
+app.use(dynamicSpeedLimiter);
 
 // Request size limiting
 app.use('/api', requestSizeLimiter('10mb'));
@@ -159,6 +167,7 @@ import contactRouter from './src/routes/contact';
 import testRouter from './src/routes/test';
 import reviewsRouter from './src/routes/reviews';
 import blogRouter from './src/routes/blog';
+import rateLimitsRouter from './src/routes/admin/rateLimits';
 
 
 // Apply additional rate limiting to specific routes
@@ -183,6 +192,8 @@ app.use('/api/wishlist', wishlistRouter);
 app.use('/api/blog', blogRouter);
 console.log('✅ [SERVER] Reviews router registered at /api/reviews');
 app.use('/api/stripe', stripeRoutes);
+app.use('/api/admin/rate-limits', rateLimitsRouter);
+console.log('✅ [SERVER] Rate limits router registered at /api/admin/rate-limits');
 
 
 // Remove duplicate stripe routes registration

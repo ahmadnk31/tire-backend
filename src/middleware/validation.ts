@@ -60,6 +60,13 @@ export const productValidation = [
     .trim()
     .isLength({ min: 3, max: 100 })
     .withMessage('SKU must be between 3 and 100 characters'),
+  body('slug')
+    .optional()
+    .trim()
+    .isLength({ min: 3, max: 255 })
+    .withMessage('Slug must be between 3 and 255 characters')
+    .matches(/^[a-z0-9-]+$/)
+    .withMessage('Slug can only contain lowercase letters, numbers, and hyphens'),
   body('price')
     .isFloat({ min: 0 })
     .withMessage('Price must be a positive number'),
@@ -117,6 +124,12 @@ export const productValidation = [
     .optional()
     .isIn(['radial', 'bias', 'bias-belted'])
     .withMessage('Construction must be radial, bias, or bias-belted'),
+  body('tireSoundVolume')
+    .optional()
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Tire sound volume must be between 1 and 50 characters')
+    .isIn(['Low', 'Medium', 'High', 'Very Low', 'Very High'])
+    .withMessage('Tire sound volume must be one of: Low, Medium, High, Very Low, Very High'),
   
   body('status')
     .optional()

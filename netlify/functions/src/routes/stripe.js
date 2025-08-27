@@ -43,6 +43,7 @@ router.post("/create-payment-intent", async (req, res) => {
             }
         });
         console.log('Payment intent created successfully:', paymentIntent.id);
+        console.log('Payment intent object:', paymentIntent);
         res.json({ clientSecret: paymentIntent.client_secret });
     }
     catch (err) {
