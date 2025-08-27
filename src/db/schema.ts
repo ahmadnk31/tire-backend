@@ -100,6 +100,7 @@ export const userAddresses = pgTable('user_addresses', {
 export const orders = pgTable('orders', {
   id: serial('id').primaryKey(),
   orderNumber: varchar('order_number', { length: 50 }).notNull().unique(),
+  paymentIntentId: varchar('payment_intent_id', { length: 255 }), // Stripe payment intent ID
   userId: integer('user_id').references(() => users.id),
   userEmail: varchar('user_email', { length: 255 }).notNull(),
   userName: varchar('user_name', { length: 255 }).notNull(),

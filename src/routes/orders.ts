@@ -47,6 +47,7 @@ interface OrderFilters {
   page?: string;
   limit?: string;
   status?: string;
+  paymentStatus?: string;
   userId?: string;
   search?: string;
   sortBy?: string;
@@ -60,6 +61,7 @@ router.get('/', requireAuth, paginationValidation, handleValidationErrors, async
       page = '1', 
       limit = '10', 
       status,
+      paymentStatus,
       userId,
       search,
       sortBy = 'createdAt',
@@ -90,6 +92,10 @@ router.get('/', requireAuth, paginationValidation, handleValidationErrors, async
       conditions.push(eq(orders.status, status));
     }
 
+    if (paymentStatus && paymentStatus !== 'all') {
+      conditions.push(eq(orders.paymentStatus, paymentStatus));
+    }
+
     // Build order clause
     const orderColumn = sortBy === 'total' ? orders.total : orders.createdAt;
     const orderDirection = sortOrder === 'asc' ? asc(orderColumn) : desc(orderColumn);
@@ -109,7 +115,8 @@ router.get('/', requireAuth, paginationValidation, handleValidationErrors, async
             name: true,
             email: true
           }
-        }
+        },
+        items: true
       }
     });
 

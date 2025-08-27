@@ -79,6 +79,7 @@ exports.userAddresses = (0, pg_core_1.pgTable)('user_addresses', {
 exports.orders = (0, pg_core_1.pgTable)('orders', {
     id: (0, pg_core_1.serial)('id').primaryKey(),
     orderNumber: (0, pg_core_1.varchar)('order_number', { length: 50 }).notNull().unique(),
+    paymentIntentId: (0, pg_core_1.varchar)('payment_intent_id', { length: 255 }),
     userId: (0, pg_core_1.integer)('user_id').references(() => exports.users.id),
     userEmail: (0, pg_core_1.varchar)('user_email', { length: 255 }).notNull(),
     userName: (0, pg_core_1.varchar)('user_name', { length: 255 }).notNull(),

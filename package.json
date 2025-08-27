@@ -17,6 +17,7 @@
     "init:rate-limits": "ts-node scripts/init-rate-limits.ts",
     "test:rate-limits": "ts-node scripts/test-rate-limits.ts",
     "migrate:add-slug": "ts-node scripts/simple-migration.ts",
+    "migrate:add-payment-intent-id": "ts-node scripts/migrate-payment-intent-id.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
