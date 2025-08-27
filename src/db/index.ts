@@ -30,5 +30,6 @@ pool.on('release', () => {
 });
 
 export const db = drizzle(pool, { schema });
+export { pool };
 
 export type DbType = typeof db

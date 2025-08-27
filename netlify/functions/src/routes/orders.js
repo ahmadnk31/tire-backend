@@ -39,7 +39,7 @@ router.get('/debug/admin', auth_1.requireAuth, auth_1.requireAdmin, async (req, 
 });
 router.get('/', auth_1.requireAuth, validation_1.paginationValidation, validation_1.handleValidationErrors, async (req, res) => {
     try {
-        const { page = '1', limit = '10', status, userId, search, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
+        const { page = '1', limit = '10', status, paymentStatus, userId, search, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
         const requestingUser = req.user;
         if (!requestingUser) {
             return res.status(401).json({ error: 'Unauthorized' });
@@ -57,6 +57,9 @@ router.get('/', auth_1.requireAuth, validation_1.paginationValidation, validatio
         if (status && status !== 'all') {
             conditions.push((0, drizzle_orm_1.eq)(schema_1.orders.status, status));
         }
+        if (paymentStatus && paymentStatus !== 'all') {
+            conditions.push((0, drizzle_orm_1.eq)(schema_1.orders.paymentStatus, paymentStatus));
+        }
         const orderColumn = sortBy === 'total' ? schema_1.orders.total : schema_1.orders.createdAt;
         const orderDirection = sortOrder === 'asc' ? (0, drizzle_orm_1.asc)(orderColumn) : (0, drizzle_orm_1.desc)(orderColumn);
         const whereClause = conditions.length > 0 ? (0, drizzle_orm_1.sql) `${drizzle_orm_1.sql.join(conditions, (0, drizzle_orm_1.sql) ` AND `)}` : undefined;
@@ -72,7 +75,8 @@ router.get('/', auth_1.requireAuth, validation_1.paginationValidation, validatio
                         name: true,
                         email: true
                     }
-                }
+                },
+                items: true
             }
         });
         const totalCountResult = await db_1.db.select({ count: (0, drizzle_orm_1.sql) `count(*)` })

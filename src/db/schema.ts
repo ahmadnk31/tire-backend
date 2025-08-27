@@ -45,18 +45,18 @@ export const products = pgTable('products', {
   status: varchar('status', { length: 20 }).notNull().default('draft'), // draft, published, hidden
   featured: boolean('featured').default(false),
   sku: varchar('sku', { length: 100 }).notNull().unique(),
+  slug: varchar('slug', { length: 255 }).unique(),
   description: text('description'),
   
   // Additional tire-specific fields that exist in your database
-  tireWidth: varchar('tire_width', { length: 10 }),
-  aspectRatio: varchar('aspect_ratio', { length: 10 }),
-  rimDiameter: varchar('rim_diameter', { length: 10 }),
+  
   loadIndex: varchar('load_index', { length: 10 }),
   speedRating: varchar('speed_rating', { length: 5 }),
   seasonType: varchar('season_type', { length: 20 }),
   tireType: varchar('tire_type', { length: 30 }),
   treadDepth: varchar('tread_depth', { length: 10 }),
   construction: varchar('construction', { length: 20 }),
+  tireSoundVolume: varchar('tire_sound_volume', { length: 50 }), // e.g., "Low", "Medium", "High"
   
   // Sale fields
   saleStartDate: timestamp('sale_start_date'),
@@ -100,6 +100,7 @@ export const userAddresses = pgTable('user_addresses', {
 export const orders = pgTable('orders', {
   id: serial('id').primaryKey(),
   orderNumber: varchar('order_number', { length: 50 }).notNull().unique(),
+  paymentIntentId: varchar('payment_intent_id', { length: 255 }), // Stripe payment intent ID
   userId: integer('user_id').references(() => users.id),
   userEmail: varchar('user_email', { length: 255 }).notNull(),
   userName: varchar('user_name', { length: 255 }).notNull(),

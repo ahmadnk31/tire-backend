@@ -8,6 +8,7 @@ const drizzle_orm_1 = require("drizzle-orm");
 const db_1 = require("../db");
 const schema_1 = require("../db/schema");
 const fuse_js_1 = __importDefault(require("fuse.js"));
+const slugGenerator_1 = require("../utils/slugGenerator");
 const auth_1 = require("../middleware/auth");
 const validation_1 = require("../middleware/validation");
 const router = express_1.default.Router();
@@ -36,13 +37,11 @@ router.get('/search', validation_1.searchValidation, validation_1.handleValidati
             status: schema_1.products.status,
             featured: schema_1.products.featured,
             sku: schema_1.products.sku,
+            slug: schema_1.products.slug,
             description: schema_1.products.description,
             features: schema_1.products.features,
             specifications: schema_1.products.specifications,
             tags: schema_1.products.tags,
-            tireWidth: schema_1.products.tireWidth,
-            aspectRatio: schema_1.products.aspectRatio,
-            rimDiameter: schema_1.products.rimDiameter,
             loadIndex: schema_1.products.loadIndex,
             speedRating: schema_1.products.speedRating,
             seasonType: schema_1.products.seasonType,
@@ -473,17 +472,16 @@ router.get('/categories/:category', async (req, res) => {
             status: schema_1.products.status,
             featured: schema_1.products.featured,
             sku: schema_1.products.sku,
+            slug: schema_1.products.slug,
             description: schema_1.products.description,
             features: schema_1.products.features,
             specifications: schema_1.products.specifications,
             tags: schema_1.products.tags,
-            tireWidth: schema_1.products.tireWidth,
-            aspectRatio: schema_1.products.aspectRatio,
-            rimDiameter: schema_1.products.rimDiameter,
             loadIndex: schema_1.products.loadIndex,
             speedRating: schema_1.products.speedRating,
             seasonType: schema_1.products.seasonType,
             tireType: schema_1.products.tireType,
+            tireSoundVolume: schema_1.products.tireSoundVolume,
             createdAt: schema_1.products.createdAt,
             updatedAt: schema_1.products.updatedAt,
             imageUrl: schema_1.productImages.imageUrl,
@@ -518,6 +516,7 @@ router.get('/categories/:category', async (req, res) => {
                     status: row.status,
                     featured: row.featured,
                     sku: row.sku,
+                    slug: row.slug,
                     description: row.description,
                     features: row.features,
                     specifications: row.specifications,
@@ -529,6 +528,7 @@ router.get('/categories/:category', async (req, res) => {
                     speedRating: row.speedRating,
                     seasonType: row.seasonType,
                     tireType: row.tireType,
+                    tireSoundVolume: row.tireSoundVolume,
                     createdAt: row.createdAt,
                     updatedAt: row.updatedAt,
                     images: row.imageUrl ? [{
@@ -624,6 +624,79 @@ router.get('/new-arrivals', validation_1.paginationValidation, validation_1.hand
         res.status(500).json({ error: 'Failed to fetch new arrivals' });
     }
 });
+router.get('/slug/:slug', async (req, res) => {
+    try {
+        const { slug } = req.params;
+        const product = await db_1.db
+            .select({
+            id: schema_1.products.id,
+            name: schema_1.products.name,
+            brand: schema_1.products.brand,
+            model: schema_1.products.model,
+            size: schema_1.products.size,
+            price: schema_1.products.price,
+            comparePrice: schema_1.products.comparePrice,
+            stock: schema_1.products.stock,
+            lowStockThreshold: schema_1.products.lowStockThreshold,
+            status: schema_1.products.status,
+            featured: schema_1.products.featured,
+            sku: schema_1.products.sku,
+            slug: schema_1.products.slug,
+            description: schema_1.products.description,
+            features: schema_1.products.features,
+            specifications: schema_1.products.specifications,
+            tags: schema_1.products.tags,
+            loadIndex: schema_1.products.loadIndex,
+            speedRating: schema_1.products.speedRating,
+            seasonType: schema_1.products.seasonType,
+            tireType: schema_1.products.tireType,
+            treadDepth: schema_1.products.treadDepth,
+            construction: schema_1.products.construction,
+            tireSoundVolume: schema_1.products.tireSoundVolume,
+            seoTitle: schema_1.products.seoTitle,
+            seoDescription: schema_1.products.seoDescription,
+            createdAt: schema_1.products.createdAt,
+            updatedAt: schema_1.products.updatedAt,
+        })
+            .from(schema_1.products)
+            .where((0, drizzle_orm_1.eq)(schema_1.products.slug, slug))
+            .limit(1);
+        if (product.length === 0) {
+            return res.status(404).json({ error: 'Product not found' });
+        }
+        const images = await db_1.db
+            .select({
+            id: schema_1.productImages.id,
+            imageUrl: schema_1.productImages.imageUrl,
+            altText: schema_1.productImages.altText,
+            isPrimary: schema_1.productImages.isPrimary,
+            sortOrder: schema_1.productImages.sortOrder,
+        })
+            .from(schema_1.productImages)
+            .where((0, drizzle_orm_1.eq)(schema_1.productImages.productId, product[0].id))
+            .orderBy((0, drizzle_orm_1.asc)(schema_1.productImages.sortOrder), (0, drizzle_orm_1.asc)(schema_1.productImages.id));
+        const categoriesForProduct = await db_1.db
+            .select({
+            categoryId: schema_1.categories.id,
+            categoryName: schema_1.categories.name,
+            categorySlug: schema_1.categories.slug,
+            categoryDescription: schema_1.categories.description,
+        })
+            .from(schema_1.categories)
+            .innerJoin(schema_1.productCategories, (0, drizzle_orm_1.eq)(schema_1.categories.id, schema_1.productCategories.categoryId))
+            .where((0, drizzle_orm_1.eq)(schema_1.productCategories.productId, product[0].id));
+        const result = {
+            ...product[0],
+            images: images,
+            categories: categoriesForProduct,
+        };
+        res.json(result);
+    }
+    catch (error) {
+        console.error('Error fetching product by slug:', error);
+        res.status(500).json({ error: 'Failed to fetch product' });
+    }
+});
 router.get('/:id', validation_1.idParamValidation, validation_1.handleValidationErrors, async (req, res) => {
     try {
         const productId = Number(req.params.id);
@@ -657,7 +730,8 @@ router.get('/:id', validation_1.idParamValidation, validation_1.handleValidation
             seoDescription: result[0].seoDescription || '',
             isOnSale,
             saleStartDate: result[0].saleStartDate,
-            saleEndDate: result[0].saleEndDate
+            saleEndDate: result[0].saleEndDate,
+            tireSoundVolume: result[0].tireSoundVolume || null
         };
         res.json(product);
     }
@@ -671,11 +745,19 @@ router.post('/', auth_1.requireAuth, auth_1.requireAdmin, validation_1.productVa
         console.log('🆕 Creating new product with data:', JSON.stringify(req.body, null, 2));
         console.log('🚗 Vehicle Type/Tire Type in creation:', { tireType: req.body.tireType, vehicleType: req.body.vehicleType });
         console.log('🖼️ Images received in request:', req.body.images || req.body.productImages);
-        const { name, brand, model, size, price, comparePrice, stock, lowStockThreshold, status = 'draft', featured = false, sku, description, features, specifications, tags, tireWidth, aspectRatio, rimDiameter, loadIndex, speedRating, seasonType, tireType, treadDepth, construction, saleStartDate, saleEndDate, seoTitle, seoDescription, productImages: productImagesData, images, categoryIds = [] } = req.body;
+        const { name, brand, model, size, price, comparePrice, stock, lowStockThreshold, status = 'draft', featured = false, sku, slug, description, features, specifications, tags, tireWidth, aspectRatio, rimDiameter, loadIndex, speedRating, seasonType, tireType, treadDepth, construction, tireSoundVolume, saleStartDate, saleEndDate, seoTitle, seoDescription, productImages: productImagesData, images, categoryIds = [] } = req.body;
         const finalSku = sku || `${brand.substring(0, 3).toUpperCase()}-${model.substring(0, 3).toUpperCase()}-${size.replace(/[\/]/g, '-')}`;
         let finalSize = size;
         if (tireWidth && aspectRatio && rimDiameter) {
             finalSize = `${tireWidth}/${aspectRatio}R${rimDiameter}`;
+        }
+        let finalSlug = slug;
+        if (!finalSlug) {
+            const existingProducts = await db_1.db.select({ slug: schema_1.products.slug }).from(schema_1.products);
+            const existingSlugs = existingProducts
+                .map(p => p.slug)
+                .filter((slug) => slug !== null);
+            finalSlug = (0, slugGenerator_1.generateProductSlug)(brand, name, finalSize, existingSlugs);
         }
         const insertData = {
             name,
@@ -689,6 +771,7 @@ router.post('/', auth_1.requireAuth, auth_1.requireAdmin, validation_1.productVa
             status,
             featured,
             sku: finalSku,
+            slug: finalSlug,
             description,
             features,
             specifications,
@@ -702,6 +785,7 @@ router.post('/', auth_1.requireAuth, auth_1.requireAdmin, validation_1.productVa
             tireType: tireType || null,
             treadDepth: treadDepth || null,
             construction: construction || null,
+            tireSoundVolume: tireSoundVolume || null,
             saleStartDate: saleStartDate ? new Date(saleStartDate) : null,
             saleEndDate: saleEndDate ? new Date(saleEndDate) : null,
             seoTitle: seoTitle || null,
@@ -776,7 +860,7 @@ router.put('/:id', auth_1.requireAuth, auth_1.requireAdmin, validation_1.idParam
         console.log('🚗 Vehicle Type/Tire Type in update:', { tireType: req.body.tireType, vehicleType: req.body.vehicleType });
         console.log('🖼️ Raw images data for update:', { productImages: req.body.productImages, images: req.body.images });
         console.log('🟢 Received images:', req.body.images);
-        const { productImages: productImagesData, images, categoryIds, tireWidth, aspectRatio, rimDiameter, size: providedSize, price, comparePrice, ...otherData } = req.body;
+        const { productImages: productImagesData, images, categoryIds, tireWidth, aspectRatio, rimDiameter, size: providedSize, price, comparePrice, slug, tireSoundVolume, ...otherData } = req.body;
         const newImages = productImagesData || images;
         let finalSize = providedSize;
         if (tireWidth && aspectRatio && rimDiameter) {
@@ -793,11 +877,23 @@ router.put('/:id', auth_1.requireAuth, auth_1.requireAdmin, validation_1.idParam
                 });
             }
         }
+        if (slug) {
+            const existingProduct = await db_1.db.select()
+                .from(schema_1.products)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.products.slug, slug), (0, drizzle_orm_1.ne)(schema_1.products.id, productId)));
+            if (existingProduct.length > 0) {
+                return res.status(400).json({
+                    error: 'Slug already exists',
+                    details: `Slug "${slug}" is already used by another product`
+                });
+            }
+        }
         const updateData = {
             ...otherData,
             size: finalSize,
             price: price ? price.toString() : undefined,
             comparePrice: comparePrice ? comparePrice.toString() : null,
+            slug: slug || undefined,
             tireWidth: tireWidth || null,
             aspectRatio: aspectRatio || null,
             rimDiameter: rimDiameter || null,
@@ -807,6 +903,7 @@ router.put('/:id', auth_1.requireAuth, auth_1.requireAdmin, validation_1.idParam
             tireType: otherData.tireType || null,
             treadDepth: otherData.treadDepth || null,
             construction: otherData.construction || null,
+            tireSoundVolume: tireSoundVolume || null,
             saleStartDate: otherData.saleStartDate ? new Date(otherData.saleStartDate) : null,
             saleEndDate: otherData.saleEndDate ? new Date(otherData.saleEndDate) : null,
             updatedAt: new Date()

@@ -15,6 +15,7 @@ exports.app = app;
 const PORT = process.env.PORT || 3001;
 app.set('query parser', 'extended');
 const rateLimiting_1 = require("./src/middleware/rateLimiting");
+const dynamicRateLimiting_1 = require("./src/middleware/dynamicRateLimiting");
 const security_1 = require("./src/utils/security");
 const validation_1 = require("./src/middleware/validation");
 const stripe_webhook_1 = __importDefault(require("./src/routes/stripe-webhook"));
@@ -71,14 +72,14 @@ app.use((0, morgan_1.default)('combined', {
         }
     }
 }));
-app.use('/api/auth', rateLimiting_1.authRateLimit);
-app.use('/api/stripe', rateLimiting_1.paymentRateLimit);
-app.use('/api/upload', rateLimiting_1.uploadRateLimit);
+app.use('/api/auth', dynamicRateLimiting_1.dynamicAuthRateLimit);
+app.use('/api/stripe', dynamicRateLimiting_1.dynamicPaymentRateLimit);
+app.use('/api/upload', dynamicRateLimiting_1.dynamicUploadRateLimit);
 app.use('/api/admin', (req, res, next) => {
     next();
 });
-app.use('/api', rateLimiting_1.generalRateLimit);
-app.use(rateLimiting_1.speedLimiter);
+app.use('/api', dynamicRateLimiting_1.dynamicGeneralRateLimit);
+app.use(dynamicRateLimiting_1.dynamicSpeedLimiter);
 app.use('/api', (0, rateLimiting_1.requestSizeLimiter)('10mb'));
 app.use('/api', stripe_webhook_1.default);
 app.use(express_1.default.json({
@@ -119,6 +120,7 @@ const contact_1 = __importDefault(require("./src/routes/contact"));
 const test_1 = __importDefault(require("./src/routes/test"));
 const reviews_1 = __importDefault(require("./src/routes/reviews"));
 const blog_1 = __importDefault(require("./src/routes/blog"));
+const rateLimits_1 = __importDefault(require("./src/routes/admin/rateLimits"));
 app.use('/api/auth', auth_1.default);
 app.use('/api/admin', admin_1.default);
 app.use('/api/products', products_1.default);
@@ -139,6 +141,8 @@ app.use('/api/wishlist', wishlist_1.default);
 app.use('/api/blog', blog_1.default);
 console.log('✅ [SERVER] Reviews router registered at /api/reviews');
 app.use('/api/stripe', stripe_1.default);
+app.use('/api/admin/rate-limits', rateLimits_1.default);
+console.log('✅ [SERVER] Rate limits router registered at /api/admin/rate-limits');
 app.get('/health', (req, res) => {
     res.json({
         status: 'OK',
