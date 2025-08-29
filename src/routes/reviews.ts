@@ -6,12 +6,29 @@ import { requireAuth, requireAdmin } from '../middleware/auth';
 import { eq, and, desc, asc, count, avg, or } from 'drizzle-orm';
 import S3Service from '../services/s3Service';
 import { upload, handleMulterError } from '../middleware/upload';
+import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
 const s3Service = new S3Service();
 
+// Rate limiting specifically for review stats to prevent 429 errors
+const reviewStatsRateLimit = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute window
+  max: 100, // Allow 100 requests per minute per IP
+  message: 'Too many review stats requests, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).json({
+      error: 'Rate limit exceeded',
+      message: 'Too many review stats requests, please try again later.',
+      retryAfter: 60
+    });
+  }
+});
+
 // Get review stats for a product (includes all reviews for stats)
-router.get('/stats/:productId', async (req, res) => {
+router.get('/stats/:productId', reviewStatsRateLimit, async (req, res) => {
   console.log('🔍 [REVIEWS API] GET /stats/:productId called');
   
   try {

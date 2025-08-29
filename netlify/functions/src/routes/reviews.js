@@ -10,9 +10,24 @@ const schema_1 = require("../db/schema");
 const auth_1 = require("../middleware/auth");
 const drizzle_orm_1 = require("drizzle-orm");
 const s3Service_1 = __importDefault(require("../services/s3Service"));
+const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const router = express_1.default.Router();
 const s3Service = new s3Service_1.default();
-router.get('/stats/:productId', async (req, res) => {
+const reviewStatsRateLimit = (0, express_rate_limit_1.default)({
+    windowMs: 1 * 60 * 1000,
+    max: 100,
+    message: 'Too many review stats requests, please try again later.',
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req, res) => {
+        res.status(429).json({
+            error: 'Rate limit exceeded',
+            message: 'Too many review stats requests, please try again later.',
+            retryAfter: 60
+        });
+    }
+});
+router.get('/stats/:productId', reviewStatsRateLimit, async (req, res) => {
     console.log('🔍 [REVIEWS API] GET /stats/:productId called');
     try {
         const { productId } = req.params;

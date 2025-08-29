@@ -79,6 +79,17 @@ router.get('/', requireAuth, paginationValidation, handleValidationErrors, async
       role: requestingUser.role
     });
     
+    console.log('🔍 [Orders API] Query parameters:', {
+      page,
+      limit,
+      status,
+      paymentStatus,
+      userId,
+      search,
+      sortBy,
+      sortOrder
+    });
+    
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const offset = (pageNum - 1) * limitNum;
@@ -113,6 +124,9 @@ router.get('/', requireAuth, paginationValidation, handleValidationErrors, async
     // Get orders with conditions
     const whereClause = conditions.length > 0 ? sql`${sql.join(conditions, sql` AND `)}` : undefined;
     
+    console.log('🔍 [Orders API] Final conditions:', conditions);
+    console.log('🔍 [Orders API] Where clause:', whereClause);
+    
     const allOrders = await db.query.orders.findMany({
       where: whereClause,
       orderBy: orderDirection,
@@ -126,7 +140,21 @@ router.get('/', requireAuth, paginationValidation, handleValidationErrors, async
             email: true
           }
         },
-        items: true
+        items: {
+          with: {
+            product: {
+              columns: {
+                id: true,
+                name: true,
+                slug: true,
+                brand: true,
+                model: true,
+                size: true,
+                price: true
+              }
+            }
+          }
+        }
       }
     });
 
@@ -137,6 +165,14 @@ router.get('/', requireAuth, paginationValidation, handleValidationErrors, async
     
     const totalOrders = totalCountResult[0]?.count || 0;
     const totalPages = Math.ceil(totalOrders / limitNum);
+
+    console.log('🔍 [Orders API] Results:', {
+      ordersCount: allOrders.length,
+      totalOrders,
+      totalPages,
+      userRole: requestingUser.role,
+      userId: requestingUser.id
+    });
 
     res.json({
       orders: allOrders,

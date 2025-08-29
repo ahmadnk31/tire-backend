@@ -30,7 +30,24 @@ router.get('/search', searchValidation, handleValidationErrors, async (req: expr
   try {
   const { q, brand } = req.query;
   console.log('[DEBUG] Search params:', { q, brand });
-  const search = String(q || '').trim();
+  
+  // Decode the search query to handle URL encoding
+  let search = String(q || '').trim();
+  if (search.includes('&#x2F;') || search.includes('&#x2f;') || search.includes('&#47;')) {
+    const originalSearch = search;
+    search = search
+      .replace(/&#x2F;/g, '/')
+      .replace(/&#x2f;/g, '/')
+      .replace(/&#47;/g, '/')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&apos;/g, "'");
+    console.log('[DEBUG] Decoded search query:', { original: originalSearch, decoded: search });
+  }
+  
   const brandFilter = typeof brand === 'string' ? brand.trim() : '';
   console.log('[DEBUG] /api/products/search called with:', { search, brandFilter });
 
@@ -151,42 +168,135 @@ router.get('/search', searchValidation, handleValidationErrors, async (req: expr
       console.log('[DEBUG] Products matching search term before Fuse.js:', debugMatches.map(p => ({ id: p.id, name: p.name, brand: p.brand, model: p.model, sku: p.sku, status: p.status })));
     }
 
-    // Apply Fuse.js fuzzy search to filtered set
+    // Apply Fuse.js fuzzy search to filtered set with comprehensive search
     let results: any[] = filteredProducts;
-    if (search && search.length > 0) { // Allow all non-empty queries
-      if (search.length <= 1) {
-        // For very short queries, use simple substring matching
+    if (search && search.length > 0) {
+      console.log('[API] Performing comprehensive Fuse.js search for:', search);
+      console.log('[DEBUG] Search query details:', {
+        original: search,
+        length: search.length,
+        containsHtmlEntities: search.includes('&#'),
+        containsForwardSlash: search.includes('/'),
+        containsAmpersand: search.includes('&')
+      });
+      
+      // Create Fuse.js instance with comprehensive search keys
+      const fuse = new Fuse(filteredProducts, {
+        keys: [
+          'name',
+          'brand', 
+          'model',
+          'size',
+          'sku',
+          'description',
+          'seasonType',
+          'tireType',
+          'loadIndex',
+          'speedRating',
+          'tags',
+          'features',
+          'specifications',
+          'categoryName',
+          'categorySlug'
+        ],
+        threshold: 0.4, // Balanced threshold for good matches
+        minMatchCharLength: 2,
+        ignoreLocation: true,
+        includeScore: true,
+        includeMatches: true,
+        shouldSort: true,
+        // Custom getFn to handle JSON fields and filter out CSS/HTML content
+        getFn: (obj, path) => {
+          const value = Fuse.config.getFn(obj, path);
+          
+          // Handle JSON fields (tags, features, specifications)
+          if (typeof value === 'string' && (path === 'tags' || path === 'features' || path === 'specifications')) {
+            try {
+              const parsed = JSON.parse(value);
+              if (Array.isArray(parsed)) {
+                return parsed.join(' ');
+              }
+              return JSON.stringify(parsed);
+            } catch {
+              return value;
+            }
+          }
+          
+                      // Filter out CSS classes and HTML content from string values
+            if (typeof value === 'string') {
+              // Decode HTML entities first
+              let cleanValue = value
+                .replace(/&#x2F;/g, '/') // Convert &#x2F; to /
+                .replace(/&#x2f;/g, '/') // Convert &#x2f; to / (lowercase)
+                .replace(/&#47;/g, '/') // Convert &#47; to /
+                .replace(/&amp;/g, '&') // Convert &amp; to &
+                .replace(/&lt;/g, '<') // Convert &lt; to <
+                .replace(/&gt;/g, '>') // Convert &gt; to >
+                .replace(/&quot;/g, '"') // Convert &quot; to "
+                .replace(/&#39;/g, "'") // Convert &#39; to '
+                .replace(/&apos;/g, "'"); // Convert &apos; to '
+              
+              // Remove CSS classes (words starting with . or containing common CSS patterns)
+              cleanValue = cleanValue
+                .replace(/\.[a-zA-Z0-9_-]+/g, '') // Remove CSS classes like .bg-red-500
+                .replace(/[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*/g, '') // Remove more CSS patterns
+                .replace(/class\s*=\s*["'][^"']*["']/g, '') // Remove class attributes
+                .replace(/className\s*=\s*["'][^"']*["']/g, '') // Remove className attributes
+                .replace(/<[^>]*>/g, '') // Remove HTML tags
+                .replace(/\s+/g, ' ') // Normalize whitespace
+                .trim();
+              
+              // Only return if the cleaned value has meaningful content
+              if (cleanValue.length > 2) {
+                return cleanValue;
+              }
+            }
+          
+          return value;
+        }
+      });
+      
+      const fuseResults = fuse.search(search);
+      console.log('[API] Fuse.js raw results:', fuseResults.length);
+      
+      // Debug: Log the first few results to see what's being matched
+      if (fuseResults.length > 0) {
+        console.log('[DEBUG] First 3 search results:');
+        fuseResults.slice(0, 3).forEach((result, index) => {
+          console.log(`  ${index + 1}. Score: ${result.score}, Item:`, {
+            id: result.item.id,
+            name: result.item.name,
+            brand: result.item.brand,
+            size: result.item.size,
+            matches: result.matches?.map(m => ({ key: m.key, value: m.value, indices: m.indices }))
+          });
+        });
+      }
+      
+      // Map results and include search metadata
+      results = fuseResults.map(result => ({
+        ...result.item,
+        searchScore: result.score,
+        searchMatches: result.matches
+      }));
+      
+      // Fallback: if Fuse.js returns no results, do a simple substring match
+      if (results.length === 0) {
+        console.log('[API] No Fuse.js results, trying fallback substring search');
         results = filteredProducts.filter(p =>
-          [p.name, p.brand, p.model, p.sku].some(field =>
+          [p.name, p.brand, p.model, p.sku, p.size, p.description].some(field =>
             typeof field === 'string' && field.toLowerCase().includes(search.toLowerCase())
           )
         );
-        console.log('[API] Short query substring match results:', results.length);
-      } else {
-        // Use Fuse.js for longer queries
-        const fuse = new Fuse(filteredProducts, {
-          keys: ['name', 'brand', 'model', 'sku'],
-          threshold: 0.4, // More lenient matching
-          minMatchCharLength: 1,
-          ignoreLocation: true,
-          includeScore: true,
-        });
-        const fuseRaw = fuse.search(search.toLowerCase());
-        results = fuseRaw.map((r: any) => r.item);
-        // Fallback: if Fuse.js returns no results, do a substring match
-        if (results.length === 0) {
-          results = filteredProducts.filter(p =>
-            [p.name, p.brand, p.model, p.sku].some(field =>
-              typeof field === 'string' && field.toLowerCase().includes(search.toLowerCase())
-            )
-          );
-          console.log('[API] Fallback substring match results:', results.length);
-        }
-        console.log('[API] Fuse.js search string:', search, '| Results:', results.length, '| Top match:', fuseRaw[0]?.item?.name, '| Score:', fuseRaw[0]?.score);
+        console.log('[API] Fallback substring match results:', results.length);
       }
-    } else if (search && search.length <= 2) {
-      results = [];
-      console.log('[API] Query too short (<=2), returning empty array.');
+      
+      console.log('[API] Final search results:', {
+        query: search,
+        totalResults: results.length,
+        topResult: results[0]?.name,
+        topScore: results[0]?.searchScore
+      });
     }
 
     // Fetch images for all matching products in one query
@@ -333,12 +443,19 @@ router.get('/', advancedSearchValidation, handleValidationErrors, async (req: ex
       const categoryFilters = Array.isArray(category) ? category : [category];
       console.log('[DEBUG] Filtering by categories:', categoryFilters);
       
+      // Decode URL-encoded category names
+      const decodedCategoryFilters = categoryFilters.map(catFilter => {
+        const decoded = decodeURIComponent(catFilter as string);
+        console.log('[DEBUG] Decoded category filter:', catFilter, '->', decoded);
+        return decoded;
+      });
+      
       // First, find the category ID(s) that match the category names or slugs
       const categoryResults = await db
-        .select({ id: categories.id })
+        .select({ id: categories.id, name: categories.name, slug: categories.slug })
         .from(categories)
         .where(or(
-          ...categoryFilters.map(catFilter => 
+          ...decodedCategoryFilters.map(catFilter => 
             or(
               eq(categories.name, catFilter as string),
               eq(categories.slug, catFilter as string)
@@ -346,6 +463,7 @@ router.get('/', advancedSearchValidation, handleValidationErrors, async (req: ex
           )
         ));
       
+      console.log('[DEBUG] Category search results:', categoryResults);
       categoryFilterIds = categoryResults.map(c => c.id);
       console.log('[DEBUG] Found category IDs:', categoryFilterIds);
       
@@ -376,40 +494,129 @@ router.get('/', advancedSearchValidation, handleValidationErrors, async (req: ex
     // Combine where conditions
     const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
-    // If search is present, use Fuse.js for fuzzy search after filtering by other conditions
+    // If search is present, use comprehensive Fuse.js for fuzzy search after filtering by other conditions
     let fuseResults: any[] | null = null;
     let filteredProducts: any[] | null = null;
     if (search) {
-      console.log('[API] Using Fuse.js for fuzzy search:', search);
+      console.log('[API] Using comprehensive Fuse.js for fuzzy search:', search);
       // First, filter products by whereClause
       filteredProducts = await db.select().from(products).where(whereClause);
       console.log('[API] Total products after filters for Fuse.js:', filteredProducts.length);
-      const searchStr = String(search).toLowerCase();
-      let fuseRaw = [];
+      // Decode the search query to handle URL encoding
+    let searchStr = String(search).toLowerCase();
+    if (searchStr.includes('&#x2F;') || searchStr.includes('&#x2f;') || searchStr.includes('&#47;')) {
+      const originalSearch = searchStr;
+      searchStr = searchStr
+        .replace(/&#x2F;/g, '/')
+        .replace(/&#x2f;/g, '/')
+        .replace(/&#47;/g, '/')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&apos;/g, "'");
+      console.log('[DEBUG] Decoded search query in main route:', { original: originalSearch, decoded: searchStr });
+    }
+      
       if (searchStr.length <= 2) {
         // For 1-2 letter queries, show all filtered products
         fuseResults = filteredProducts;
         console.log('[API] Short query, returning all filtered products:', fuseResults.length);
       } else {
+        // Use comprehensive Fuse.js search
         const fuse = new Fuse(filteredProducts, {
-          keys: ['name', 'brand', 'model', 'sku'],
-          threshold: 0.3, // stricter matching
-          minMatchCharLength: 1,
+          keys: [
+            'name',
+            'brand', 
+            'model',
+            'size',
+            'sku',
+            'description',
+            'seasonType',
+            'tireType',
+            'loadIndex',
+            'speedRating',
+            'tags',
+            'features',
+            'specifications'
+          ],
+          threshold: 0.4, // Balanced threshold for good matches
+          minMatchCharLength: 2,
           ignoreLocation: true,
           includeScore: true,
+          includeMatches: true,
+          shouldSort: true,
+          // Custom getFn to handle JSON fields and filter out CSS/HTML content
+          getFn: (obj, path) => {
+            const value = Fuse.config.getFn(obj, path);
+            
+            // Handle JSON fields (tags, features, specifications)
+            if (typeof value === 'string' && (path === 'tags' || path === 'features' || path === 'specifications')) {
+              try {
+                const parsed = JSON.parse(value);
+                if (Array.isArray(parsed)) {
+                  return parsed.join(' ');
+                }
+                return JSON.stringify(parsed);
+              } catch {
+                return value;
+              }
+            }
+            
+            // Filter out CSS classes and HTML content from string values
+            if (typeof value === 'string') {
+              // Decode HTML entities first
+              let cleanValue = value
+                .replace(/&#x2F;/g, '/') // Convert &#x2F; to /
+                .replace(/&#x2f;/g, '/') // Convert &#x2f; to / (lowercase)
+                .replace(/&#47;/g, '/') // Convert &#47; to /
+                .replace(/&amp;/g, '&') // Convert &amp; to &
+                .replace(/&lt;/g, '<') // Convert &lt; to <
+                .replace(/&gt;/g, '>') // Convert &gt; to >
+                .replace(/&quot;/g, '"') // Convert &quot; to "
+                .replace(/&#39;/g, "'") // Convert &#39; to '
+                .replace(/&apos;/g, "'"); // Convert &apos; to '
+              
+              // Remove CSS classes (words starting with . or containing common CSS patterns)
+              cleanValue = cleanValue
+                .replace(/\.[a-zA-Z0-9_-]+/g, '') // Remove CSS classes like .bg-red-500
+                .replace(/[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*/g, '') // Remove more CSS patterns
+                .replace(/class\s*=\s*["'][^"']*["']/g, '') // Remove class attributes
+                .replace(/className\s*=\s*["'][^"']*["']/g, '') // Remove className attributes
+                .replace(/<[^>]*>/g, '') // Remove HTML tags
+                .replace(/\s+/g, ' ') // Normalize whitespace
+                .trim();
+              
+              // Only return if the cleaned value has meaningful content
+              if (cleanValue.length > 2) {
+                return cleanValue;
+              }
+            }
+            
+            return value;
+          }
         });
-        fuseRaw = fuse.search(searchStr);
+        
+        const fuseRaw = fuse.search(searchStr);
         fuseResults = fuseRaw.map((r: any) => r.item);
+        
         // Fallback: if Fuse.js returns no results, do a substring match
         if (fuseResults && fuseResults.length === 0) {
           fuseResults = filteredProducts.filter(p =>
-            [p.name, p.brand, p.model, p.sku].some(field =>
+            [p.name, p.brand, p.model, p.sku, p.size, p.description].some(field =>
               typeof field === 'string' && field.toLowerCase().includes(searchStr)
             )
           );
           console.log('[API] Fallback substring match results:', fuseResults.length);
         }
-        console.log('[API] Fuse.js search string:', search, '| Results:', fuseResults?.length, '| Top match:', fuseRaw[0]?.item?.name, '| Score:', fuseRaw[0]?.score);
+        
+        console.log('[API] Comprehensive Fuse.js search results:', {
+          query: search,
+          totalResults: fuseResults?.length,
+          topResult: fuseRaw[0]?.item?.name,
+          topScore: fuseRaw[0]?.score
+        });
       }
     }
 
@@ -564,7 +771,37 @@ router.get('/brands', async (req: express.Request, res: express.Response) => {
     .groupBy(products.brand)
     .orderBy(asc(products.brand));
     
-    res.json({ brands: result });
+    // Normalize brand names and merge duplicates
+    const brandMap = new Map<string, { brand: string; productCount: number }>();
+    
+    result.forEach(item => {
+      if (!item.brand) return;
+      
+      // Normalize brand name (title case for consistency)
+      const normalizedBrand = item.brand
+        .toLowerCase()
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+      
+      if (brandMap.has(normalizedBrand)) {
+        // Merge with existing brand
+        const existing = brandMap.get(normalizedBrand)!;
+        existing.productCount += item.productCount;
+      } else {
+        // Add new brand
+        brandMap.set(normalizedBrand, {
+          brand: normalizedBrand,
+          productCount: item.productCount
+        });
+      }
+    });
+    
+    // Convert back to array and sort
+    const normalizedBrands = Array.from(brandMap.values())
+      .sort((a, b) => a.brand.localeCompare(b.brand));
+    
+    res.json({ brands: normalizedBrands });
   } catch (error) {
     console.error('Error fetching brands:', error);
     res.status(500).json({ error: 'Failed to fetch brands' });
@@ -1436,9 +1673,28 @@ router.get('/:id/related', idParamValidation, handleValidationErrors, async (req
           return acc;
         }, {});
     }
+    // Attach category relationships for badge system
+    let categoryIdsByProductId: Record<number, number[]> = {};
+    if (productIds.length > 0) {
+      const productCategoryResults = await db.select().from(productCategories).where(inArray(productCategories.productId, productIds));
+      categoryIdsByProductId = productCategoryResults
+        .filter((pc: any) => pc.productId !== null && pc.categoryId !== null)
+        .reduce((acc: Record<number, number[]>, pc: any) => {
+          if (pc.productId !== null && pc.categoryId !== null) {
+            if (!acc[pc.productId]) acc[pc.productId] = [];
+            acc[pc.productId].push(pc.categoryId);
+          }
+          return acc;
+        }, {});
+    }
+    
     const relatedWithImages = relatedProducts.map((p: any) => ({
       ...p,
-      images: imagesByProductId[p.id] || []
+      images: imagesByProductId[p.id] || [],
+      productImages: imagesByProductId[p.id] || [], // Also include as productImages for consistency
+      categoryIds: categoryIdsByProductId[p.id] || [],
+      // Add isOnSale logic for badge system
+      isOnSale: p.comparePrice && parseFloat(p.comparePrice) > parseFloat(p.price)
     }));
     res.json({ products: relatedWithImages });
   } catch (error) {

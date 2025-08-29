@@ -49,6 +49,16 @@ router.get('/', auth_1.requireAuth, validation_1.paginationValidation, validatio
             email: requestingUser.email,
             role: requestingUser.role
         });
+        console.log('🔍 [Orders API] Query parameters:', {
+            page,
+            limit,
+            status,
+            paymentStatus,
+            userId,
+            search,
+            sortBy,
+            sortOrder
+        });
         const pageNum = parseInt(page);
         const limitNum = parseInt(limit);
         const offset = (pageNum - 1) * limitNum;
@@ -73,6 +83,8 @@ router.get('/', auth_1.requireAuth, validation_1.paginationValidation, validatio
         const orderColumn = sortBy === 'total' ? schema_1.orders.total : schema_1.orders.createdAt;
         const orderDirection = sortOrder === 'asc' ? (0, drizzle_orm_1.asc)(orderColumn) : (0, drizzle_orm_1.desc)(orderColumn);
         const whereClause = conditions.length > 0 ? (0, drizzle_orm_1.sql) `${drizzle_orm_1.sql.join(conditions, (0, drizzle_orm_1.sql) ` AND `)}` : undefined;
+        console.log('🔍 [Orders API] Final conditions:', conditions);
+        console.log('🔍 [Orders API] Where clause:', whereClause);
         const allOrders = await db_1.db.query.orders.findMany({
             where: whereClause,
             orderBy: orderDirection,
@@ -86,7 +98,21 @@ router.get('/', auth_1.requireAuth, validation_1.paginationValidation, validatio
                         email: true
                     }
                 },
-                items: true
+                items: {
+                    with: {
+                        product: {
+                            columns: {
+                                id: true,
+                                name: true,
+                                slug: true,
+                                brand: true,
+                                model: true,
+                                size: true,
+                                price: true
+                            }
+                        }
+                    }
+                }
             }
         });
         const totalCountResult = await db_1.db.select({ count: (0, drizzle_orm_1.sql) `count(*)` })
@@ -94,6 +120,13 @@ router.get('/', auth_1.requireAuth, validation_1.paginationValidation, validatio
             .where(whereClause);
         const totalOrders = totalCountResult[0]?.count || 0;
         const totalPages = Math.ceil(totalOrders / limitNum);
+        console.log('🔍 [Orders API] Results:', {
+            ordersCount: allOrders.length,
+            totalOrders,
+            totalPages,
+            userRole: requestingUser.role,
+            userId: requestingUser.id
+        });
         res.json({
             orders: allOrders,
             pagination: {
