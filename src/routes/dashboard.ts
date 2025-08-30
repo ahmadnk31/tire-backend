@@ -16,11 +16,14 @@ router.get('/recent-orders', requireAuth, requireAdmin, async (req, res) => {
   try {
     // Get 10 most recent orders
     const recentOrders = await db.select().from(orders).orderBy(desc(orders.createdAt)).limit(10);
+    console.log('🔍 [Dashboard] Found recent orders:', recentOrders.length);
+    
     // For each order, get first order item and join product and user
     const orderIds = recentOrders.map(o => o.id);
     let itemsByOrderId: Record<number, any> = {};
     if (orderIds.length > 0) {
       const items = await db.select().from(orderItems).where(inArray(orderItems.orderId, orderIds));
+      console.log('🔍 [Dashboard] Found order items:', items.length);
       itemsByOrderId = items.reduce((acc: any, item: any) => {
         if (!acc[item.orderId]) acc[item.orderId] = [];
         acc[item.orderId].push(item);
@@ -43,6 +46,7 @@ router.get('/recent-orders', requireAuth, requireAdmin, async (req, res) => {
         date: order.createdAt?.toISOString().slice(0, 10) || '',
       };
     }));
+    console.log('🔍 [Dashboard] Returning recent orders result:', result);
     res.json(result);
   } catch (error) {
     console.error('Error fetching recent orders:', error);

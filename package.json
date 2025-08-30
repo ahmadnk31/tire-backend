@@ -18,6 +18,14 @@
     "test:rate-limits": "ts-node scripts/test-rate-limits.ts",
     "migrate:add-slug": "ts-node scripts/simple-migration.ts",
     "migrate:add-payment-intent-id": "ts-node scripts/migrate-payment-intent-id.ts",
+    "seed": "ts-node seed.ts",
+    "seed:ariana": "ts-node seed-ariana-banden.ts",
+    "update:ariana-images": "ts-node update-ariana-images.ts",
+    "fix:construction": "ts-node fix-construction-values.ts",
+    "update:specs": "ts-node update-product-specs.ts",
+    "link:second-hand": "ts-node link-second-hand.ts",
+    "check:categories": "ts-node check-categories.ts",
+    "force:second-hand": "ts-node force-link-second-hand.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

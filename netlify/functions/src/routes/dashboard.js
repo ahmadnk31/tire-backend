@@ -15,10 +15,12 @@ const router = (0, express_1.Router)();
 router.get('/recent-orders', auth_1.requireAuth, auth_1.requireAdmin, async (req, res) => {
     try {
         const recentOrders = await db_1.db.select().from(schema_1.orders).orderBy((0, drizzle_orm_1.desc)(schema_1.orders.createdAt)).limit(10);
+        console.log('🔍 [Dashboard] Found recent orders:', recentOrders.length);
         const orderIds = recentOrders.map(o => o.id);
         let itemsByOrderId = {};
         if (orderIds.length > 0) {
             const items = await db_1.db.select().from(schema_1.orderItems).where((0, drizzle_orm_1.inArray)(schema_1.orderItems.orderId, orderIds));
+            console.log('🔍 [Dashboard] Found order items:', items.length);
             itemsByOrderId = items.reduce((acc, item) => {
                 if (!acc[item.orderId])
                     acc[item.orderId] = [];
@@ -42,6 +44,7 @@ router.get('/recent-orders', auth_1.requireAuth, auth_1.requireAdmin, async (req
                 date: order.createdAt?.toISOString().slice(0, 10) || '',
             };
         }));
+        console.log('🔍 [Dashboard] Returning recent orders result:', result);
         res.json(result);
     }
     catch (error) {

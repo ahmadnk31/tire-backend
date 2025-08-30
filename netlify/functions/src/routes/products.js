@@ -17,7 +17,21 @@ router.get('/search', validation_1.searchValidation, validation_1.handleValidati
     try {
         const { q, brand } = req.query;
         console.log('[DEBUG] Search params:', { q, brand });
-        const search = String(q || '').trim();
+        let search = String(q || '').trim();
+        if (search.includes('&#x2F;') || search.includes('&#x2f;') || search.includes('&#47;')) {
+            const originalSearch = search;
+            search = search
+                .replace(/&#x2F;/g, '/')
+                .replace(/&#x2f;/g, '/')
+                .replace(/&#47;/g, '/')
+                .replace(/&amp;/g, '&')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/&apos;/g, "'");
+            console.log('[DEBUG] Decoded search query:', { original: originalSearch, decoded: search });
+        }
         const brandFilter = typeof brand === 'string' ? brand.trim() : '';
         console.log('[DEBUG] /api/products/search called with:', { search, brandFilter });
         console.log('[DEBUG] Query params:', req.query);
@@ -109,30 +123,108 @@ router.get('/search', validation_1.searchValidation, validation_1.handleValidati
         }
         let results = filteredProducts;
         if (search && search.length > 0) {
-            if (search.length <= 1) {
-                results = filteredProducts.filter(p => [p.name, p.brand, p.model, p.sku].some(field => typeof field === 'string' && field.toLowerCase().includes(search.toLowerCase())));
-                console.log('[API] Short query substring match results:', results.length);
-            }
-            else {
-                const fuse = new fuse_js_1.default(filteredProducts, {
-                    keys: ['name', 'brand', 'model', 'sku'],
-                    threshold: 0.4,
-                    minMatchCharLength: 1,
-                    ignoreLocation: true,
-                    includeScore: true,
-                });
-                const fuseRaw = fuse.search(search.toLowerCase());
-                results = fuseRaw.map((r) => r.item);
-                if (results.length === 0) {
-                    results = filteredProducts.filter(p => [p.name, p.brand, p.model, p.sku].some(field => typeof field === 'string' && field.toLowerCase().includes(search.toLowerCase())));
-                    console.log('[API] Fallback substring match results:', results.length);
+            console.log('[API] Performing comprehensive Fuse.js search for:', search);
+            console.log('[DEBUG] Search query details:', {
+                original: search,
+                length: search.length,
+                containsHtmlEntities: search.includes('&#'),
+                containsForwardSlash: search.includes('/'),
+                containsAmpersand: search.includes('&')
+            });
+            const fuse = new fuse_js_1.default(filteredProducts, {
+                keys: [
+                    'name',
+                    'brand',
+                    'model',
+                    'size',
+                    'sku',
+                    'description',
+                    'seasonType',
+                    'tireType',
+                    'loadIndex',
+                    'speedRating',
+                    'tags',
+                    'features',
+                    'specifications',
+                    'categoryName',
+                    'categorySlug'
+                ],
+                threshold: 0.4,
+                minMatchCharLength: 2,
+                ignoreLocation: true,
+                includeScore: true,
+                includeMatches: true,
+                shouldSort: true,
+                getFn: (obj, path) => {
+                    const value = fuse_js_1.default.config.getFn(obj, path);
+                    if (typeof value === 'string' && (path === 'tags' || path === 'features' || path === 'specifications')) {
+                        try {
+                            const parsed = JSON.parse(value);
+                            if (Array.isArray(parsed)) {
+                                return parsed.join(' ');
+                            }
+                            return JSON.stringify(parsed);
+                        }
+                        catch {
+                            return value;
+                        }
+                    }
+                    if (typeof value === 'string') {
+                        let cleanValue = value
+                            .replace(/&#x2F;/g, '/')
+                            .replace(/&#x2f;/g, '/')
+                            .replace(/&#47;/g, '/')
+                            .replace(/&amp;/g, '&')
+                            .replace(/&lt;/g, '<')
+                            .replace(/&gt;/g, '>')
+                            .replace(/&quot;/g, '"')
+                            .replace(/&#39;/g, "'")
+                            .replace(/&apos;/g, "'");
+                        cleanValue = cleanValue
+                            .replace(/\.[a-zA-Z0-9_-]+/g, '')
+                            .replace(/[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*/g, '')
+                            .replace(/class\s*=\s*["'][^"']*["']/g, '')
+                            .replace(/className\s*=\s*["'][^"']*["']/g, '')
+                            .replace(/<[^>]*>/g, '')
+                            .replace(/\s+/g, ' ')
+                            .trim();
+                        if (cleanValue.length > 2) {
+                            return cleanValue;
+                        }
+                    }
+                    return value;
                 }
-                console.log('[API] Fuse.js search string:', search, '| Results:', results.length, '| Top match:', fuseRaw[0]?.item?.name, '| Score:', fuseRaw[0]?.score);
+            });
+            const fuseResults = fuse.search(search);
+            console.log('[API] Fuse.js raw results:', fuseResults.length);
+            if (fuseResults.length > 0) {
+                console.log('[DEBUG] First 3 search results:');
+                fuseResults.slice(0, 3).forEach((result, index) => {
+                    console.log(`  ${index + 1}. Score: ${result.score}, Item:`, {
+                        id: result.item.id,
+                        name: result.item.name,
+                        brand: result.item.brand,
+                        size: result.item.size,
+                        matches: result.matches?.map(m => ({ key: m.key, value: m.value, indices: m.indices }))
+                    });
+                });
             }
-        }
-        else if (search && search.length <= 2) {
-            results = [];
-            console.log('[API] Query too short (<=2), returning empty array.');
+            results = fuseResults.map(result => ({
+                ...result.item,
+                searchScore: result.score,
+                searchMatches: result.matches
+            }));
+            if (results.length === 0) {
+                console.log('[API] No Fuse.js results, trying fallback substring search');
+                results = filteredProducts.filter(p => [p.name, p.brand, p.model, p.sku, p.size, p.description].some(field => typeof field === 'string' && field.toLowerCase().includes(search.toLowerCase())));
+                console.log('[API] Fallback substring match results:', results.length);
+            }
+            console.log('[API] Final search results:', {
+                query: search,
+                totalResults: results.length,
+                topResult: results[0]?.name,
+                topScore: results[0]?.searchScore
+            });
         }
         const productIds = results.map(p => p.id);
         let imagesByProductId = {};
@@ -231,10 +323,16 @@ router.get('/', validation_1.advancedSearchValidation, validation_1.handleValida
         if (category && category !== 'all') {
             const categoryFilters = Array.isArray(category) ? category : [category];
             console.log('[DEBUG] Filtering by categories:', categoryFilters);
+            const decodedCategoryFilters = categoryFilters.map(catFilter => {
+                const decoded = decodeURIComponent(catFilter);
+                console.log('[DEBUG] Decoded category filter:', catFilter, '->', decoded);
+                return decoded;
+            });
             const categoryResults = await db_1.db
-                .select({ id: schema_1.categories.id })
+                .select({ id: schema_1.categories.id, name: schema_1.categories.name, slug: schema_1.categories.slug })
                 .from(schema_1.categories)
-                .where((0, drizzle_orm_1.or)(...categoryFilters.map(catFilter => (0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(schema_1.categories.name, catFilter), (0, drizzle_orm_1.eq)(schema_1.categories.slug, catFilter)))));
+                .where((0, drizzle_orm_1.or)(...decodedCategoryFilters.map(catFilter => (0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(schema_1.categories.name, catFilter), (0, drizzle_orm_1.eq)(schema_1.categories.slug, catFilter)))));
+            console.log('[DEBUG] Category search results:', categoryResults);
             categoryFilterIds = categoryResults.map(c => c.id);
             console.log('[DEBUG] Found category IDs:', categoryFilterIds);
             if (categoryFilterIds.length > 0) {
@@ -260,30 +358,103 @@ router.get('/', validation_1.advancedSearchValidation, validation_1.handleValida
         let fuseResults = null;
         let filteredProducts = null;
         if (search) {
-            console.log('[API] Using Fuse.js for fuzzy search:', search);
+            console.log('[API] Using comprehensive Fuse.js for fuzzy search:', search);
             filteredProducts = await db_1.db.select().from(schema_1.products).where(whereClause);
             console.log('[API] Total products after filters for Fuse.js:', filteredProducts.length);
-            const searchStr = String(search).toLowerCase();
-            let fuseRaw = [];
+            let searchStr = String(search).toLowerCase();
+            if (searchStr.includes('&#x2F;') || searchStr.includes('&#x2f;') || searchStr.includes('&#47;')) {
+                const originalSearch = searchStr;
+                searchStr = searchStr
+                    .replace(/&#x2F;/g, '/')
+                    .replace(/&#x2f;/g, '/')
+                    .replace(/&#47;/g, '/')
+                    .replace(/&amp;/g, '&')
+                    .replace(/&lt;/g, '<')
+                    .replace(/&gt;/g, '>')
+                    .replace(/&quot;/g, '"')
+                    .replace(/&#39;/g, "'")
+                    .replace(/&apos;/g, "'");
+                console.log('[DEBUG] Decoded search query in main route:', { original: originalSearch, decoded: searchStr });
+            }
             if (searchStr.length <= 2) {
                 fuseResults = filteredProducts;
                 console.log('[API] Short query, returning all filtered products:', fuseResults.length);
             }
             else {
                 const fuse = new fuse_js_1.default(filteredProducts, {
-                    keys: ['name', 'brand', 'model', 'sku'],
-                    threshold: 0.3,
-                    minMatchCharLength: 1,
+                    keys: [
+                        'name',
+                        'brand',
+                        'model',
+                        'size',
+                        'sku',
+                        'description',
+                        'seasonType',
+                        'tireType',
+                        'loadIndex',
+                        'speedRating',
+                        'tags',
+                        'features',
+                        'specifications'
+                    ],
+                    threshold: 0.4,
+                    minMatchCharLength: 2,
                     ignoreLocation: true,
                     includeScore: true,
+                    includeMatches: true,
+                    shouldSort: true,
+                    getFn: (obj, path) => {
+                        const value = fuse_js_1.default.config.getFn(obj, path);
+                        if (typeof value === 'string' && (path === 'tags' || path === 'features' || path === 'specifications')) {
+                            try {
+                                const parsed = JSON.parse(value);
+                                if (Array.isArray(parsed)) {
+                                    return parsed.join(' ');
+                                }
+                                return JSON.stringify(parsed);
+                            }
+                            catch {
+                                return value;
+                            }
+                        }
+                        if (typeof value === 'string') {
+                            let cleanValue = value
+                                .replace(/&#x2F;/g, '/')
+                                .replace(/&#x2f;/g, '/')
+                                .replace(/&#47;/g, '/')
+                                .replace(/&amp;/g, '&')
+                                .replace(/&lt;/g, '<')
+                                .replace(/&gt;/g, '>')
+                                .replace(/&quot;/g, '"')
+                                .replace(/&#39;/g, "'")
+                                .replace(/&apos;/g, "'");
+                            cleanValue = cleanValue
+                                .replace(/\.[a-zA-Z0-9_-]+/g, '')
+                                .replace(/[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*/g, '')
+                                .replace(/class\s*=\s*["'][^"']*["']/g, '')
+                                .replace(/className\s*=\s*["'][^"']*["']/g, '')
+                                .replace(/<[^>]*>/g, '')
+                                .replace(/\s+/g, ' ')
+                                .trim();
+                            if (cleanValue.length > 2) {
+                                return cleanValue;
+                            }
+                        }
+                        return value;
+                    }
                 });
-                fuseRaw = fuse.search(searchStr);
+                const fuseRaw = fuse.search(searchStr);
                 fuseResults = fuseRaw.map((r) => r.item);
                 if (fuseResults && fuseResults.length === 0) {
-                    fuseResults = filteredProducts.filter(p => [p.name, p.brand, p.model, p.sku].some(field => typeof field === 'string' && field.toLowerCase().includes(searchStr)));
+                    fuseResults = filteredProducts.filter(p => [p.name, p.brand, p.model, p.sku, p.size, p.description].some(field => typeof field === 'string' && field.toLowerCase().includes(searchStr)));
                     console.log('[API] Fallback substring match results:', fuseResults.length);
                 }
-                console.log('[API] Fuse.js search string:', search, '| Results:', fuseResults?.length, '| Top match:', fuseRaw[0]?.item?.name, '| Score:', fuseRaw[0]?.score);
+                console.log('[API] Comprehensive Fuse.js search results:', {
+                    query: search,
+                    totalResults: fuseResults?.length,
+                    topResult: fuseRaw[0]?.item?.name,
+                    topScore: fuseRaw[0]?.score
+                });
             }
         }
         let totalProducts;
@@ -414,7 +585,29 @@ router.get('/brands', async (req, res) => {
             .where((0, drizzle_orm_1.eq)(schema_1.products.status, 'published'))
             .groupBy(schema_1.products.brand)
             .orderBy((0, drizzle_orm_1.asc)(schema_1.products.brand));
-        res.json({ brands: result });
+        const brandMap = new Map();
+        result.forEach(item => {
+            if (!item.brand)
+                return;
+            const normalizedBrand = item.brand
+                .toLowerCase()
+                .split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+            if (brandMap.has(normalizedBrand)) {
+                const existing = brandMap.get(normalizedBrand);
+                existing.productCount += item.productCount;
+            }
+            else {
+                brandMap.set(normalizedBrand, {
+                    brand: normalizedBrand,
+                    productCount: item.productCount
+                });
+            }
+        });
+        const normalizedBrands = Array.from(brandMap.values())
+            .sort((a, b) => a.brand.localeCompare(b.brand));
+        res.json({ brands: normalizedBrands });
     }
     catch (error) {
         console.error('Error fetching brands:', error);
@@ -1101,9 +1294,26 @@ router.get('/:id/related', validation_1.idParamValidation, validation_1.handleVa
                 return acc;
             }, {});
         }
+        let categoryIdsByProductId = {};
+        if (productIds.length > 0) {
+            const productCategoryResults = await db_1.db.select().from(schema_1.productCategories).where((0, drizzle_orm_1.inArray)(schema_1.productCategories.productId, productIds));
+            categoryIdsByProductId = productCategoryResults
+                .filter((pc) => pc.productId !== null && pc.categoryId !== null)
+                .reduce((acc, pc) => {
+                if (pc.productId !== null && pc.categoryId !== null) {
+                    if (!acc[pc.productId])
+                        acc[pc.productId] = [];
+                    acc[pc.productId].push(pc.categoryId);
+                }
+                return acc;
+            }, {});
+        }
         const relatedWithImages = relatedProducts.map((p) => ({
             ...p,
-            images: imagesByProductId[p.id] || []
+            images: imagesByProductId[p.id] || [],
+            productImages: imagesByProductId[p.id] || [],
+            categoryIds: categoryIdsByProductId[p.id] || [],
+            isOnSale: p.comparePrice && parseFloat(p.comparePrice) > parseFloat(p.price)
         }));
         res.json({ products: relatedWithImages });
     }

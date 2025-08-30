@@ -39,15 +39,18 @@ const pg_1 = require("pg");
 const schema = __importStar(require("./schema"));
 const pool = new pg_1.Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/tire_store',
-    max: 20,
-    min: 2,
-    idleTimeoutMillis: 30000,
+    max: 10,
+    min: 1,
+    idleTimeoutMillis: 60000,
     connectionTimeoutMillis: 10000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
+    statement_timeout: 30000,
+    query_timeout: 30000,
 });
 exports.pool = pool;
 pool.on('error', (err) => {
-    console.error('Unexpected error on idle client', err);
-    process.exit(-1);
+    console.error('Database pool error:', err.message);
 });
 pool.on('connect', () => {
     console.log('New database connection established');
@@ -58,4 +61,14 @@ pool.on('acquire', () => {
 pool.on('release', () => {
     console.log('Database connection released back to pool');
 });
+setInterval(async () => {
+    try {
+        const client = await pool.connect();
+        await client.query('SELECT 1');
+        client.release();
+    }
+    catch (error) {
+        console.error('Database health check failed:', error);
+    }
+}, 30000);
 exports.db = (0, node_postgres_1.drizzle)(pool, { schema });

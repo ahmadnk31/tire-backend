@@ -17,6 +17,7 @@ router.get('/', async (req, res) => {
                 'Winter Tires': 'winter',
                 'All-Season Tires': 'all-season',
                 'Performance Tires': 'performance',
+                'Commercial Tires': 'commercial',
                 "Second Hand": "second hand"
             };
             const seasonType = seasonTypeMap[category.name];
