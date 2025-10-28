@@ -392,7 +392,7 @@ router.post('/admin/posts', requireAuth, requireAdmin, async (req: any, res: any
       readTime,
       image
     } = req.body;
-    
+
     console.log('📝 Creating blog post:', {
       title,
       category,
@@ -401,14 +401,47 @@ router.post('/admin/posts', requireAuth, requireAdmin, async (req: any, res: any
       hasContent: !!content,
       hasImage: !!image
     });
-    
+
     if (!title || !content || !category) {
       console.log('❌ Missing required fields:', { title: !!title, content: !!content, category: !!category });
       return res.status(400).json({ error: 'Missing required fields' });
     }
-    
+
+    // Safely parse tags: accept JSON array, comma-separated, or # separated string
+    let tagsArray: string[] | null = null;
+    if (tags) {
+      try {
+        if (Array.isArray(tags)) {
+          tagsArray = tags;
+        } else if (typeof tags === 'string') {
+          // Only try JSON.parse if it looks like a JSON array
+          const trimmed = tags.trim();
+          if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+            try {
+              const parsed = JSON.parse(trimmed);
+              if (Array.isArray(parsed)) {
+                tagsArray = parsed;
+              } else {
+                tagsArray = [trimmed];
+              }
+            } catch {
+              tagsArray = [trimmed];
+            }
+          } else {
+            // Split on # or comma, ignore empty
+            tagsArray = trimmed
+              .split(/[#|,]/)
+              .map((t: string) => t.trim())
+              .filter(Boolean);
+          }
+        }
+      } catch (err) {
+        tagsArray = null;
+      }
+    }
+
     const slug = generateSlug(title);
-    
+
     const newPost = await db
       .insert(blogPosts)
       .values({
@@ -419,7 +452,7 @@ router.post('/admin/posts', requireAuth, requireAdmin, async (req: any, res: any
         author: req.user?.name || 'Admin',
         authorId: req.user?.id,
         category,
-        tags: tags ? JSON.stringify(JSON.parse(tags)) : null,
+        tags: tagsArray ? JSON.stringify(tagsArray) : null,
         featured: featured === 'true',
         status,
         readTime,
@@ -427,14 +460,14 @@ router.post('/admin/posts', requireAuth, requireAdmin, async (req: any, res: any
         publishedAt: status === 'published' ? new Date() : null
       })
       .returning();
-    
+
     console.log('✅ Blog post created successfully:', {
       id: newPost[0].id,
       title: newPost[0].title,
       status: newPost[0].status,
       slug: newPost[0].slug
     });
-    
+
     res.status(201).json({ post: newPost[0] });
   } catch (error) {
     console.error('❌ Error creating blog post:', error);
