@@ -397,13 +397,47 @@ router.put('/admin/posts/:id', auth_1.requireAuth, auth_1.requireAdmin, async (r
             return res.status(400).json({ error: 'Missing required fields' });
         }
         const slug = generateSlug(title);
+        let tagsArray = null;
+        if (tags) {
+            try {
+                if (Array.isArray(tags)) {
+                    tagsArray = tags;
+                }
+                else if (typeof tags === 'string') {
+                    const trimmed = tags.trim();
+                    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+                        try {
+                            const parsed = JSON.parse(trimmed);
+                            if (Array.isArray(parsed)) {
+                                tagsArray = parsed;
+                            }
+                            else {
+                                tagsArray = [trimmed];
+                            }
+                        }
+                        catch {
+                            tagsArray = [trimmed];
+                        }
+                    }
+                    else {
+                        tagsArray = trimmed
+                            .split(/[#|,]/)
+                            .map((t) => t.trim())
+                            .filter(Boolean);
+                    }
+                }
+            }
+            catch (err) {
+                tagsArray = null;
+            }
+        }
         const updateData = {
             title,
             slug,
             excerpt,
             content,
             category,
-            tags: tags ? JSON.stringify(JSON.parse(tags)) : null,
+            tags: tagsArray ? JSON.stringify(tagsArray) : null,
             featured: featured === 'true',
             status,
             readTime,
