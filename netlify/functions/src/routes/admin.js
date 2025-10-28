@@ -71,4 +71,5 @@ router.post('/emergency-clear-blocks', auth_1.requireAuth, auth_1.requireAdmin, 
 });
 router.use('/settings', settings_1.default);
 router.use('/backups', backups_1.default);
+router.use('/rateLimits', securityRateLimit_1.rateLimitRouter);
 exports.default = router;
