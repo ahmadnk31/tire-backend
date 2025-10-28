@@ -323,6 +323,40 @@ router.post('/admin/posts', auth_1.requireAuth, auth_1.requireAdmin, async (req,
             console.log('❌ Missing required fields:', { title: !!title, content: !!content, category: !!category });
             return res.status(400).json({ error: 'Missing required fields' });
         }
+        let tagsArray = null;
+        if (tags) {
+            try {
+                if (Array.isArray(tags)) {
+                    tagsArray = tags;
+                }
+                else if (typeof tags === 'string') {
+                    const trimmed = tags.trim();
+                    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+                        try {
+                            const parsed = JSON.parse(trimmed);
+                            if (Array.isArray(parsed)) {
+                                tagsArray = parsed;
+                            }
+                            else {
+                                tagsArray = [trimmed];
+                            }
+                        }
+                        catch {
+                            tagsArray = [trimmed];
+                        }
+                    }
+                    else {
+                        tagsArray = trimmed
+                            .split(/[#|,]/)
+                            .map((t) => t.trim())
+                            .filter(Boolean);
+                    }
+                }
+            }
+            catch (err) {
+                tagsArray = null;
+            }
+        }
         const slug = generateSlug(title);
         const newPost = await db_1.db
             .insert(schema_1.blogPosts)
@@ -334,7 +368,7 @@ router.post('/admin/posts', auth_1.requireAuth, auth_1.requireAdmin, async (req,
             author: req.user?.name || 'Admin',
             authorId: req.user?.id,
             category,
-            tags: tags ? JSON.stringify(JSON.parse(tags)) : null,
+            tags: tagsArray ? JSON.stringify(tagsArray) : null,
             featured: featured === 'true',
             status,
             readTime,
