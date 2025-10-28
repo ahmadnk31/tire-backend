@@ -8,6 +8,7 @@ const auth_1 = require("../middleware/auth");
 const securityRateLimit_1 = require("../middleware/securityRateLimit");
 const settings_1 = __importDefault(require("./admin/settings"));
 const backups_1 = __importDefault(require("./admin/backups"));
+const rateLimits_1 = __importDefault(require("./admin/rateLimits"));
 const router = (0, express_1.Router)();
 router.get('/security-blocks', auth_1.requireAuth, auth_1.requireAdmin, async (req, res) => {
     try {
@@ -71,5 +72,5 @@ router.post('/emergency-clear-blocks', auth_1.requireAuth, auth_1.requireAdmin, 
 });
 router.use('/settings', settings_1.default);
 router.use('/backups', backups_1.default);
-router.use('/rateLimits', securityRateLimit_1.rateLimitRouter);
+router.use('/rate-limits', rateLimits_1.default);
 exports.default = router;
