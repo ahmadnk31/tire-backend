@@ -497,20 +497,52 @@ router.put('/admin/posts/:id', requireAuth, requireAdmin, async (req: any, res: 
     
     const slug = generateSlug(title);
     
+
+    // Robust tags parsing (same as create route)
+    let tagsArray: string[] | null = null;
+    if (tags) {
+      try {
+        if (Array.isArray(tags)) {
+          tagsArray = tags;
+        } else if (typeof tags === 'string') {
+          const trimmed = tags.trim();
+          if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+            try {
+              const parsed = JSON.parse(trimmed);
+              if (Array.isArray(parsed)) {
+                tagsArray = parsed;
+              } else {
+                tagsArray = [trimmed];
+              }
+            } catch {
+              tagsArray = [trimmed];
+            }
+          } else {
+            tagsArray = trimmed
+              .split(/[#|,]/)
+              .map((t: string) => t.trim())
+              .filter(Boolean);
+          }
+        }
+      } catch (err) {
+        tagsArray = null;
+      }
+    }
+
     const updateData: any = {
       title,
       slug,
       excerpt,
       content,
       category,
-      tags: tags ? JSON.stringify(JSON.parse(tags)) : null,
+      tags: tagsArray ? JSON.stringify(tagsArray) : null,
       featured: featured === 'true',
       status,
       readTime,
       image: image || null,
       updatedAt: new Date()
     };
-    
+
     if (status === 'published') {
       updateData.publishedAt = new Date();
     }
